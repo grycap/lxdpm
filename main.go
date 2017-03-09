@@ -13,6 +13,7 @@ var key = flag.String("key","./certs/client.key","Path to key to use for client 
 var servercrt = flag.String("servercrt","./certs/servercerts/server.crt","Path to the server cert we are accesing.")
 
 func main() {
+	saveConfig(&DefaultConfig,DefaultConfig.ConfigDir+"/config.yaml")
 	var apilx = apilxd.LxdpmApi{}
 	//Client initialization
 	fmt.Println("Creating client")

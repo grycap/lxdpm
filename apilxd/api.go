@@ -23,6 +23,7 @@ type LxdpmApi struct {
 	mux 		*mux.Router
 	Cli 		*lxd.Client
 	clientCerts	[]x509.Certificate
+	DefConfig 	*Config
 }
 
 type Command struct {

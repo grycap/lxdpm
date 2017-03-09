@@ -1,4 +1,4 @@
-package main
+package apilxd
 
 import (
 	"os"
@@ -49,8 +49,7 @@ var Host4 = HostConfig{
 var DefaultHosts = map[string]HostConfig{
 	"local": 	Main,
 	"lxdpm02":	Host2,
-	"lxdpm03":	Host3,
-	"lxdpm04":	Host4}
+	"lxdpm03":	Host3}
 
 var DefaultConfig = Config{
 	MainHost:	"local",

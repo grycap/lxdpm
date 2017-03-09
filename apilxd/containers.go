@@ -3,11 +3,13 @@ package apilxd
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"os/exec"
 	"encoding/json"
 	"bytes"
 	"github.com/lxc/lxd/shared/api"
 	"strings"
+	"sync"
 	//"os"
 	//"log"
 	/*"io"
@@ -24,99 +26,84 @@ import (
 	"github.com/lxc/lxd/shared/osarch"*/
 )
 
+type HostContainerMetadata struct {
+	Name 		string 	`json:"name"`
+	Containers 	[]string `json:"containers"`
+}
 
 var containersCmd = Command{
 	name: "containers",
-	get:  containersGet,
+	get:  containersGetAll,
 	//post: containersPost,
 }
 
-/*Returns metadata array
 func containersGetAll(lx *LxdpmApi,  r *http.Request) Response {
-	var result []string = []string{}  
-	argstr := []string{"troig@lxdpm02", "curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/containers"}
+	var result []HostContainerMetadata
+	var wg sync.WaitGroup
+	var metadata_hosts = make(chan HostContainerMetadata)
+	defer close(metadata_hosts)
+	var keys []string
+	for k := range DefaultHosts {
+		keys = append(keys,k)
+	}
+	wg.Add(len(keys))
+	sort.Strings(keys)
+	fmt.Println(keys)
+	for _,k := range keys {
+		go func (key string) {
+			defer wg.Done()
+			if DefaultHosts[key].Name == "local" {
+					metadata_hosts <- containersGetMetadataLocal()
+			} else {
+					metadata_hosts <- containersGetMetadata(DefaultHosts[key].Name)
+			}
+			
+		}(k)
+	}
+	
+	fmt.Println(metadata_hosts)
+	go func() {
+        for response := range metadata_hosts {
+        	//fmt.Println(response)
+            result = append(result,response)
+            //fmt.Println(result)
+        }
+    }()
+    wg.Wait()
+	return SyncResponse(true,result)
+}
+func containersGetMetadata(hostname string) HostContainerMetadata {
+
+	argstr := []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/containers"}  
     out, err := exec.Command("ssh", argstr...).Output()
     if err != nil {
         fmt.Println(err)
     }
-    metadata := parseMetadataFromResponse(out)
-    result = append(result,metadata)
-    argstr = []string{"-s","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/containers"}
-    out, err = exec.Command("curl", argstr...).Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    result = append(result,parseMetadataFromResponse(out))
-    //fmt.Println(string(result))
-	return SyncResponse(true,interface{}(result))
-}*/
-/*
-func containersGetAllAppendString(lx *LxdpmApi,  r *http.Request) Response {
-	var result string = "" 
-	argstr := []string{"-s","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/containers"}
-    out, err := exec.Command("curl", argstr...).Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    result = result + string(out)
-
-	return SyncResponse(true,interface{}(string(result)))
-}*/
-
-func containersGet(lx *LxdpmApi,  r *http.Request) Response {
-	var result []string = []string{}  
-	argstr := []string{"-s","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/containers"}
-    out, err := exec.Command("curl", argstr...).Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    metadata := parseMetadataFromResponse(out)
-    fmt.Println(strings.Split(metadata,""))
-    splitted := strings.Split(metadata,"")
-    fmt.Println(len(splitted))
-    splitted = splitted[2:len(splitted)-2]
-    result = append(result,strings.Join(splitted,""))
-    fmt.Println(result)
-	return SyncResponse(true,interface{}(result))
+    meta := parseMetadataFromResponse(hostname,out)
+    //fmt.Println(meta)
+    //fmt.Println(result)
+    return meta
 }
 
-func parseMetadataFromResponse(input []byte) (res string) {
+func containersGetMetadataLocal() HostContainerMetadata {
+
+	argstr := []string{"-s","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/containers"}
+    out, err := exec.Command("curl", argstr...).Output()
+    if err != nil {
+        fmt.Println(err)
+    }
+    meta := parseMetadataFromResponse("local",out)
+    //fmt.Println(meta)
+    //fmt.Println(result)
+    return meta
+}
+func parseMetadataFromResponse(hostname string, input []byte) (res HostContainerMetadata) {
 	var resp = api.Response{}
     json.NewDecoder(bytes.NewReader(input)).Decode(&resp)
-    res = string(resp.Metadata)
+    res.Name = hostname
+    json.NewDecoder(bytes.NewReader(resp.Metadata)).Decode(&res.Containers)
     return res
-} 
-
-
-/*
-	var result1 = api.Response{}
-    json.NewDecoder(bytes.NewReader(out)).Decode(&result1)
-    fmt.Printf("%+v",result1)
-    meta := string(result1.Metadata)
-    fmt.Printf("%v",meta)
-
-func containersGet(lx *LxdpmApi,  r *http.Request) Response {
-	argstr := []string{"troig@lxdpm02", "curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/containers"}
-    out, err := exec.Command("ssh", argstr...).Output()
-    if err != nil {
-        log.Fatal(err)
-        os.Exit(1)
-    }
-    fmt.Println(string(out))
-	fmt.Println("Tutto beneeeeeeeeeeeeee")
-	return SyncResponse(true,interface{}(string(out)))
-}*/
-/*func containersGet(lx *LxdpmApi,  r *http.Request) Response {
-	var containers,err = lx.Cli.ListContainers()
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(containers)
-	}
-	fmt.Println("Tutto beneeeeeeeeeeeeee")
-	return SyncResponse(true,interface{}(containers))
 }
-*/
 
 /*
 var containerCmd = Command{
