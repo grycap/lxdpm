@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"runtime"
 	"flag"
+	"os"
+	"crypto/x509"
+	"bytes"
 
 	"github.com/lxc/lxd"
 	"github.com/lxc/lxd/shared"
@@ -12,14 +15,14 @@ import (
 	"log"
 	"gopkg.in/inconshreveable/log15.v2"
 )
-
 var host = flag.String("host", "158.42.104.141", "The port of the application.")
 var port = flag.String("port", ":8080", "The port of the application.")
 var debug = true
 
 type LxdpmApi struct {
-	mux 	*mux.Router
-	Cli 	*lxd.Client
+	mux 		*mux.Router
+	Cli 		*lxd.Client
+	clientCerts	[]x509.Certificate
 }
 
 type Command struct {
@@ -35,6 +38,8 @@ type Command struct {
 
 var api10 = []Command{
 	containersCmd,
+	certificatesCmd,
+	api10Cmd,
 //	containerCmd,
 }
 
@@ -88,6 +93,12 @@ func (lx *LxdpmApi) createCmd(version string, c Command) {
 }
 
 func (lx *LxdpmApi) Init() {
+	var certpath string = ""
+	var keypath string = ""
+	if _, err := os.Stat("../serverlxd.crt"); err == nil {
+		certpath = "../serverlxd.crt"
+		keypath = "../serverlxd.key"
+	}
 	//APIServer initialization
 	lx.mux = mux.NewRouter()
 	lx.mux.StrictSlash(false)
@@ -108,9 +119,45 @@ func (lx *LxdpmApi) Init() {
 	})
 
 	log.Println("Starting LXD platform manager server on ", *port)
-
-	if err := http.ListenAndServe(*port,lx.mux); err != nil {
-		log.Fatal("ListenAndServe:",err)
+	if certpath != "" {
+		if err := http.ListenAndServeTLS(*port,certpath,keypath,lx.mux); err != nil {
+			log.Fatal("ListenAndServe:",err)
+		}
+	} else {
+		if err := http.ListenAndServe(*port,lx.mux); err != nil {
+			log.Fatal("ListenAndServe:",err)
+		}
 	}
 
+}
+
+func (lx *LxdpmApi) isTrustedClient(r *http.Request) bool {
+	if r.RemoteAddr == "@" {
+		// Unix socket
+		return true
+	}
+
+	if r.TLS == nil {
+		return false
+	}
+
+	for i := range r.TLS.PeerCertificates {
+		if lx.CheckTrustState(*r.TLS.PeerCertificates[i]) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (lx *LxdpmApi) CheckTrustState(cert x509.Certificate) bool {
+	for k, v := range lx.clientCerts {
+		if bytes.Compare(cert.Raw, v.Raw) == 0 {
+			//shared.LogDebug("Found cert", log.Ctx{"k": k})
+			fmt.Printf("Found cert %s",k)
+			return true
+		}
+	}
+
+	return false
 }
