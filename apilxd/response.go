@@ -94,6 +94,78 @@ func SyncResponseHeaders(success bool, metadata interface{}, headers map[string]
 
 var EmptySyncResponse = &syncResponse{success: true, metadata: make(map[string]interface{})}
 
+// async response
+type asyncResponse struct {
+	success  bool
+	etag     interface{}
+	metadata interface{}
+	location string
+	headers  map[string]string
+}
+
+func (r *asyncResponse) Render(w http.ResponseWriter) error {
+	// Set an appropriate ETag header
+	if r.etag != nil {
+		etag, err := etagHash(r.etag)
+		if err == nil {
+			w.Header().Set("ETag", etag)
+		}
+	}
+
+	// Prepare the JSON response
+	status := api.Success
+	if !r.success {
+		status = api.Failure
+	}
+
+	if r.headers != nil {
+		for h, v := range r.headers {
+			w.Header().Set(h, v)
+		}
+	}
+
+	if r.location != "" {
+		w.Header().Set("Location", r.location)
+		w.WriteHeader(201)
+	}
+
+	resp := api.ResponseRaw{
+		Response: api.Response{
+			Type:       api.AsyncResponse,
+			Status:     status.String(),
+			StatusCode: int(status)},
+		Metadata: r.metadata,
+	}
+
+	return WriteJSON(w, resp)
+}
+
+func (r *asyncResponse) String() string {
+	if r.success {
+		return "success"
+	}
+
+	return "failure"
+}
+
+func AsyncResponse(success bool, metadata interface{}) Response {
+	return &asyncResponse{success: success, metadata: metadata}
+}
+
+func AsyncResponseETag(success bool, metadata interface{}, etag interface{}) Response {
+	return &asyncResponse{success: success, metadata: metadata, etag: etag}
+}
+
+func AsyncResponseLocation(success bool, metadata interface{}, location string) Response {
+	return &asyncResponse{success: success, metadata: metadata, location: location}
+}
+
+func AsyncResponseHeaders(success bool, metadata interface{}, headers map[string]string) Response {
+	return &asyncResponse{success: success, metadata: metadata, headers: headers}
+}
+
+var EmptyasyncResponse = &asyncResponse{success: true, metadata: make(map[string]interface{})}
+
 // File transfer response
 type fileResponseEntry struct {
 	identifier string
@@ -283,3 +355,80 @@ func SmartError(err error) Response {
 		return InternalError(err)
 	}
 }
+
+
+type LxdResponseRaw struct {
+	LxdResponse `yaml:",inline"`
+
+	Metadata interface{} `json:"metadata" yaml:"metadata"`
+}
+// Response represents a LXD operation
+type LxdResponse struct {
+	Type lxdResponseType `json:"type" yaml:"type"`
+
+	// Valid only for Sync responses
+	Status     string `json:"status" yaml:"status"`
+	StatusCode int    `json:"status_code" yaml:"status_code"`
+
+	// Valid only for Async responses
+	Operation string `json:"operation" yaml:"operation"`
+
+	// Valid only for Error responses
+	Code  int    `json:"error_code" yaml:"error_code"`
+	Error string `json:"error" yaml:"error"`
+
+	// Valid for Sync and Error responses
+	Metadata json.RawMessage `json:"metadata" yaml:"metadata"`
+}
+
+// MetadataAsMap parses the Response metadata into a map
+func (r *LxdResponse) MetadataAsMap() (map[string]interface{}, error) {
+	ret := map[string]interface{}{}
+	err := r.MetadataAsStruct(&ret)
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+// MetadataAsOperation turns the Response metadata into an Operation
+func (r *LxdResponse) MetadataAsOperation() (*api.Operation, error) {
+	op := api.Operation{}
+	err := r.MetadataAsStruct(&op)
+	if err != nil {
+		return nil, err
+	}
+
+	return &op, nil
+}
+
+// MetadataAsStringSlice parses the Response metadata into a slice of string
+func (r *LxdResponse) MetadataAsStringSlice() ([]string, error) {
+	sl := []string{}
+	err := r.MetadataAsStruct(&sl)
+	if err != nil {
+		return nil, err
+	}
+
+	return sl, nil
+}
+
+// MetadataAsStruct parses the Response metadata into a provided struct
+func (r *LxdResponse) MetadataAsStruct(target interface{}) error {
+	if err := json.Unmarshal(r.Metadata, &target); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ResponseType represents a valid LXD response type
+type lxdResponseType string
+
+// LXD response types
+const (
+	lxdSyncResponse  lxdResponseType = "sync"
+	lxdAsyncResponse lxdResponseType = "async"
+	lxdErrorResponse lxdResponseType = "error"
+)

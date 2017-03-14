@@ -33,23 +33,26 @@ type HostContainerMetadata struct {
 
 var containersCmd = Command{
 	name: "containers",
-	get:  containersGetAll,
-	//post: containersPost,
+	get:  containersGetAllLXD,
+	post: containerPostHost,
 }
 
-func containersGetAll(lx *LxdpmApi,  r *http.Request) Response {
-	var result []HostContainerMetadata
-	var wg sync.WaitGroup
-	var metadata_hosts = make(chan HostContainerMetadata)
-	defer close(metadata_hosts)
+func containersGetAllLXD(lx *LxdpmApi,  r *http.Request) Response {
 	var keys []string
 	for k := range DefaultHosts {
 		keys = append(keys,k)
 	}
+	var result []HostContainerMetadata
+	var wg sync.WaitGroup
+	var resultLXD []string
+	var metadata_hosts = make(chan HostContainerMetadata,len(keys))
+	defer close(metadata_hosts)
+	
 	wg.Add(len(keys))
 	sort.Strings(keys)
 	fmt.Println(keys)
 	for _,k := range keys {
+
 		go func (key string) {
 			defer wg.Done()
 			if DefaultHosts[key].Name == "local" {
@@ -60,16 +63,49 @@ func containersGetAll(lx *LxdpmApi,  r *http.Request) Response {
 			
 		}(k)
 	}
+	//fmt.Printf("%+v %s",metadata_hosts,cap(metadata_hosts))
 	
-	fmt.Println(metadata_hosts)
-	go func() {
-        for response := range metadata_hosts {
-        	//fmt.Println(response)
-            result = append(result,response)
-            //fmt.Println(result)
-        }
-    }()
-    wg.Wait()
+	for i :=0 ;i < len(keys); i++ {
+		result = append(result,<-metadata_hosts)
+	}
+	wg.Wait()
+	for _,v := range result {
+		resultLXD = append(resultLXD,(v.Containers)...)
+	}
+	return SyncResponse(true,resultLXD)
+}
+
+func containersGetAll(lx *LxdpmApi,  r *http.Request) Response {
+	var keys []string
+	for k := range DefaultHosts {
+		keys = append(keys,k)
+	}
+	var result []HostContainerMetadata
+	var wg sync.WaitGroup
+	var metadata_hosts = make(chan HostContainerMetadata,len(keys))
+	defer close(metadata_hosts)
+	
+	wg.Add(len(keys))
+	sort.Strings(keys)
+	fmt.Println(keys)
+	for _,k := range keys {
+
+		go func (key string) {
+			defer wg.Done()
+			if DefaultHosts[key].Name == "local" {
+					metadata_hosts <- containersGetMetadataLocal()
+			} else {
+					metadata_hosts <- containersGetMetadata(DefaultHosts[key].Name)
+			}
+			
+		}(k)
+	}
+	//fmt.Printf("%+v %s",metadata_hosts,cap(metadata_hosts))
+	
+	for i :=0 ;i < len(keys); i++ {
+		result = append(result,<-metadata_hosts)
+	}
+	wg.Wait()
 	return SyncResponse(true,result)
 }
 func containersGetMetadata(hostname string) HostContainerMetadata {
@@ -105,6 +141,57 @@ func parseMetadataFromResponse(hostname string, input []byte) (res HostContainer
     return res
 }
 
+type ContainersHostPost struct {
+
+	Hostname   string          `json:"hostname" yaml:"hostname"`
+	ContainersPost api.ContainersPost `json:"containersPost" yaml:"containerPost"`
+}
+
+func parseMetadataFromOperationResponse(input []byte) LxdResponseRaw {
+	var resp = LxdResponseRaw{}
+    json.NewDecoder(bytes.NewReader(input)).Decode(&resp)
+    //fmt.Println(resp.Metadata)
+    //fmt.Println(string(resp.Metadata))
+    return resp
+}
+func containerPostHost(lx *LxdpmApi,  r *http.Request) Response {
+	req := ContainersHostPost{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return BadRequest(err)
+	}
+	fmt.Printf("\nReq: %+v",req)
+	res := containerPost(req)
+	return AsyncResponse(true,res)
+}
+
+
+func containerPost(req ContainersHostPost) LxdResponseRaw {
+	buf ,err := json.Marshal(req.ContainersPost)
+	if err != nil {
+		fmt.Println(err)
+	}
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	fmt.Println("\n"+string(buf))
+	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
+	if req.Hostname != "" {
+		argstr = []string{strings.Join([]string{"troig","@",req.Hostname},""),"curl -k --unix-socket /var/lib/lxd/unix.socket -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers"}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers"}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("curl", argstr...)
+	}
+	
+    out, err := command.Output()
+    fmt.Println("\nOut: ",string(out))
+    if err != nil {
+        fmt.Println(err)
+    }
+    meta := parseMetadataFromOperationResponse(out)
+    return meta
+}
 /*
 var containerCmd = Command{
 	name:   "containers/{name}",
