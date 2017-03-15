@@ -192,16 +192,17 @@ func containerPost(req ContainersHostPost) LxdResponseRaw {
     meta := parseMetadataFromOperationResponse(out)
     return meta
 }
-/*
+
 var containerCmd = Command{
 	name:   "containers/{name}",
 	get:    containerGet,
-	put:    containerPut,
+	/*put:    containerPut,
 	delete: containerDelete,
 	post:   containerPost,
 	patch:  containerPatch,
+	*/
 }
-
+/*
 var containerStateCmd = Command{
 	name: "containers/{name}/state",
 	get:  containerState,

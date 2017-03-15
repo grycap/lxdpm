@@ -8,6 +8,7 @@ import (
 	"os"
 	"crypto/x509"
 	"bytes"
+	"database/sql"
 
 	"github.com/lxc/lxd"
 	"github.com/lxc/lxd/shared"
@@ -22,6 +23,7 @@ var debug = true
 type LxdpmApi struct {
 	mux 		*mux.Router
 	Cli 		*lxd.Client
+	db 			*sql.DB
 	clientCerts	[]x509.Certificate
 	DefConfig 	*Config
 }
@@ -41,7 +43,7 @@ var api10 = []Command{
 	containersCmd,
 	certificatesCmd,
 	api10Cmd,
-//	containerCmd,
+	containerCmd,
 }
 
 func (lx *LxdpmApi) createCmd(version string, c Command) {
@@ -94,6 +96,12 @@ func (lx *LxdpmApi) createCmd(version string, c Command) {
 }
 
 func (lx *LxdpmApi) Init() {
+	/* Initialize the database */
+	err := initializeDbObject(lx, "./lxdpm.db")
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	var certpath string = ""
 	var keypath string = ""
 	if _, err := os.Stat("../serverlxd.crt"); err == nil {
