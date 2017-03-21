@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS schema (
 );
 `
 
+const DUMMY_DATA string = `INSERT INTO hosts (id, name, ip) VALUES (1,'localhost','');
+INSERT INTO hosts (id, name, ip) VALUES (2,'lxdpm02','');
+INSERT INTO hosts (id, name, ip) VALUES (3,'lxdpm03','');`
+
 func enableForeignKeys(conn *sqlite3.SQLiteConn) error {
 	_, err := conn.Exec("PRAGMA foreign_keys=ON;", nil)
 	return err
@@ -67,6 +71,11 @@ func createDb(db *sql.DB) (err error) {
 	// There isn't an entry for schema version, let's put it in.
 	insertStmt := `INSERT INTO schema (version, updated_at) values (?, strftime("%s"));`
 	_, err = db.Exec(insertStmt, 1)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(DUMMY_DATA, 1)
 	if err != nil {
 		return err
 	}

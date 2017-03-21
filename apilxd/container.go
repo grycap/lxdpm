@@ -10,21 +10,29 @@ import (
 	//"github.com/gorilla/mux"
 )
 const DB_FILL string = `
-	INSERT INTO hosts (id, name, ip) VALUES (1,'localhost','') 
+	INSERT INTO hosts (id, name, ip) VALUES (1,'localhost','');
 	`
 func containerGet(lx *LxdpmApi, r *http.Request) Response {
-	_, err := lx.db.Exec(DB_FILL)
+	/*_, err := lx.db.Exec(DB_FILL)
 	if err != nil {
 		return BadRequest(err)
-	}
-	cash, err := lx.db.Query(`SELECT * FROM hosts`)
+	}*/
+	result := getDBhosts(lx)
+	return SyncResponse(true,result)
+}
+
+func getDBhosts(lx *LxdpmApi) [][]interface{} {
+	inargs := []interface{}{}
+	outargs := []interface{}{"id","localhost","ip"}
+	//cash, err := lx.db.Query(`SELECT * FROM hosts`)
+	result, err := dbQueryScan(lx.db, `SELECT * FROM hosts`,inargs,outargs )
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Printf("%+v",cash)
-	return SyncResponse(true,cash)
-}
 
+
+	return result
+}
 /*func containerGet(lx *LxdpmApi, r *http.Request) Response {
 	name := mux.Vars(r)["name"]
 

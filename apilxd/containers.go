@@ -15,7 +15,7 @@ import (
 	/*"io"
 	"os/exec"
 	"path/filepath"
-	"strings"
+	
 	"time"
 
 	"gopkg.in/lxc/go-lxc.v2"
@@ -70,6 +70,7 @@ func containersGetAllLXD(lx *LxdpmApi,  r *http.Request) Response {
 	}
 	wg.Wait()
 	for _,v := range result {
+		addContainersToHostDB(lx, v.Name ,v.Containers)
 		resultLXD = append(resultLXD,(v.Containers)...)
 	}
 	return SyncResponse(true,resultLXD)
@@ -191,6 +192,63 @@ func containerPost(req ContainersHostPost) LxdResponseRaw {
     }
     meta := parseMetadataFromOperationResponse(out)
     return meta
+}
+
+func getHostId(lx *LxdpmApi,name string) string {
+	inargs := []interface{}{}
+	outargs := []interface{}{"id"}
+	//cash, err := lx.db.Query(`SELECT * FROM hosts`)
+	result, err := dbQueryScan(lx.db, `SELECT id FROM hosts where name='`+name+`'`,inargs,outargs )
+	if err != nil {
+		fmt.Println(err)
+	}
+	if len(result) == 0 {
+		return ""
+	}
+
+	return result[0][0].(string)
+}
+
+func getContainerIdDB(lx *LxdpmApi,name string) (string,error) {
+	inargs := []interface{}{}
+	outargs := []interface{}{"id"}
+	//cash, err := lx.db.Query(`SELECT * FROM hosts`)
+	result, err := dbQueryScan(lx.db, `SELECT id FROM containers where name='`+name+`'`,inargs,outargs )
+	if err != nil {
+		fmt.Println(err)
+		return "",err
+	}
+	if len(result) == 0 {
+		return "" , nil
+	}
+
+	return result[0][0].(string) ,nil
+}
+
+func createContainerDB(lx *LxdpmApi,hostid string,cname string) error{
+	q := `INSERT INTO containers (name,host_id) VALUES (?,?)`
+	_,err := dbExec(lx.db,q,cname,hostid)
+	return err
+}
+
+func addContainersToHostDB(lx *LxdpmApi,hostname string,containers []string) {
+	hostid := getHostId(lx,hostname)
+	var cname []string
+	for _,container := range containers {
+
+		cname = strings.Split(container,"/")
+		id,err := getContainerIdDB(lx,cname[len(cname)-1])
+
+		if err != nil {
+			fmt.Println(err)
+		} 
+		if id == "" {
+			err := createContainerDB(lx,hostid,cname[len(cname)-1])
+			if err != nil {
+				fmt.Println(err)
+			}
+		} 
+	}
 }
 
 var containerCmd = Command{
