@@ -44,6 +44,8 @@ var api10 = []Command{
 	certificatesCmd,
 	api10Cmd,
 	containerCmd,
+	containerStateCmd,
+	containerFileCmd,
 }
 
 func (lx *LxdpmApi) createCmd(version string, c Command) {

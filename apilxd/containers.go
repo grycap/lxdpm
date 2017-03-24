@@ -161,12 +161,12 @@ func containerPostHost(lx *LxdpmApi,  r *http.Request) Response {
 		return BadRequest(err)
 	}
 	fmt.Printf("\nReq: %+v",req)
-	res := containerPost(req)
+	res := containersPost(req)
 	return AsyncResponse(true,res)
 }
 
 
-func containerPost(req ContainersHostPost) LxdResponseRaw {
+func containersPost(req ContainersHostPost) LxdResponseRaw {
 	buf ,err := json.Marshal(req.ContainersPost)
 	if err != nil {
 		fmt.Println(err)
@@ -197,7 +197,7 @@ func containerPost(req ContainersHostPost) LxdResponseRaw {
 func getHostId(lx *LxdpmApi,name string) string {
 	inargs := []interface{}{}
 	outargs := []interface{}{"id"}
-	//cash, err := lx.db.Query(`SELECT * FROM hosts`)
+
 	result, err := dbQueryScan(lx.db, `SELECT id FROM hosts where name='`+name+`'`,inargs,outargs )
 	if err != nil {
 		fmt.Println(err)
@@ -254,13 +254,13 @@ func addContainersToHostDB(lx *LxdpmApi,hostname string,containers []string) {
 var containerCmd = Command{
 	name:   "containers/{name}",
 	get:    containerGet,
-	/*put:    containerPut,
+	put:    containerPut,
 	delete: containerDelete,
 	post:   containerPost,
-	patch:  containerPatch,
+	/*patch:  containerPatch,
 	*/
 }
-/*
+
 var containerStateCmd = Command{
 	name: "containers/{name}/state",
 	get:  containerState,
@@ -270,10 +270,10 @@ var containerStateCmd = Command{
 var containerFileCmd = Command{
 	name:   "containers/{name}/files",
 	get:    containerFileHandler,
-	post:   containerFileHandler,
-	delete: containerFileHandler,
+	/*post:   containerFileHandler,
+	delete: containerFileHandler,*/
 }
-
+/*
 var containerSnapshotsCmd = Command{
 	name: "containers/{name}/snapshots",
 	get:  containerSnapshotsGet,
