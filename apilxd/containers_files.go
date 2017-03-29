@@ -21,17 +21,26 @@ func containerFileHandler(lx *LxdpmApi, r *http.Request) Response {
 	path := r.FormValue("path")
 
 	hostname := getHostnameFromContainername(lx,name)
+	switch r.Method {
+	case "GET":
+			resp := containerFileGetMetadata(hostname[0][0].(string),name,path,r)
+			return resp
+	case "POST":
+			resp := containerFilePost(hostname[0][0].(string),name,path,r)
+			return resp
+	case "DELETE":
 
-	resp := containerFileGetMetadata(hostname[0][0].(string),name,path,r)
+	default:
+		return NotFound
+	}
+	
 	//resp := containerFilesGet(hostname[0][0].(string),name)
 
-	//meta := resp.Metadata 
+	//meta := resp.Metadata
+	return NotFound
 
-	return resp
 }
-/*func containerFileGet(hostname string, cname string,path string r *http.Request) Response {
 
-}*/
 func containerFileGetMetadata(hostname string, cname string,filepath string,r *http.Request) Response{
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
@@ -86,8 +95,6 @@ func createFileResponse(body string,headers string,path string,r *http.Request) 
 		return InternalError(err)
 	}
 
-	//defer os.Remove(temp.Name())
-
 	if _, err := temp.Write([]byte(body)); err != nil {
 		log.Fatal(err)
 	}
@@ -100,4 +107,30 @@ func createFileResponse(body string,headers string,path string,r *http.Request) 
 
 	return FileResponse(r,files,lxdHeaders,true)
 
+}
+
+func containerFilePost(hostname string, cname string,filepath string, r *http.Request) Response {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		fmt.Println(err)
+	}
+	strbody := string(body)
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	if hostname != "local" {
+		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -k --unix-socket /var/lib/lxd/unix.socket -X POST -H \"Content-Type: application/octet-stream\" -d '"+strbody+"' s/1.0/containers/"+cname+"/files?path="+filepath}
+		fmt.Println("\nArgs: ",strings.Join(argstr," "))
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","POST","-H", "Content-Type: application/octet-stream","-d","'"+strbody+"'","s/1.0/containers/"+cname+"/files?path="+filepath}
+		fmt.Println("\nArgs: ",strings.Join(argstr," "))
+		command = exec.Command("curl", argstr...)
+	}
+    out, err := command.Output()
+    if err != nil {
+        fmt.Println(err)
+    }
+    fmt.Println("Out files: \n"+string(out))
+    //Handle this better in case of error
+    return SyncResponse(true,"")
 }

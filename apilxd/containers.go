@@ -270,10 +270,10 @@ var containerStateCmd = Command{
 var containerFileCmd = Command{
 	name:   "containers/{name}/files",
 	get:    containerFileHandler,
-	/*post:   containerFileHandler,
-	delete: containerFileHandler,*/
+	post:   containerFileHandler,
+	/*delete: containerFileHandler,*/
 }
-/*
+
 var containerSnapshotsCmd = Command{
 	name: "containers/{name}/snapshots",
 	get:  containerSnapshotsGet,
@@ -282,11 +282,12 @@ var containerSnapshotsCmd = Command{
 
 var containerSnapshotCmd = Command{
 	name:   "containers/{name}/snapshots/{snapshotName}",
-	get:    snapshotHandler,
-	post:   snapshotHandler,
-	delete: snapshotHandler,
+	get:    snapshotsGet,
+	post:   snapshotsPost,
+	delete: snapshotsDelete,
 }
 
+/*
 var containerExecCmd = Command{
 	name: "containers/{name}/exec",
 	post: containerExecPost,
