@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS containers (
     FOREIGN KEY (host_id) REFERENCES hosts (id) ON DELETE CASCADE,
     UNIQUE (name)
 );
+CREATE TABLE IF NOT EXISTS profiles (
+    id INTEGER primary key AUTOINCREMENT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    host_id INTEGER NOT NULL,
+    FOREIGN KEY (host_id) REFERENCES hosts (id) ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS schema (
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     version INTEGER NOT NULL,
@@ -43,7 +49,7 @@ CREATE TABLE IF NOT EXISTS schema (
 );
 `
 
-const DUMMY_DATA string = `INSERT INTO hosts (id, name, ip) VALUES (1,'localhost','');
+const DUMMY_DATA string = `INSERT INTO hosts (id, name, ip) VALUES (1,'local','');
 INSERT INTO hosts (id, name, ip) VALUES (2,'lxdpm02','');
 INSERT INTO hosts (id, name, ip) VALUES (3,'lxdpm03','');`
 

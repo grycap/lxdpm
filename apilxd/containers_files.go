@@ -29,7 +29,8 @@ func containerFileHandler(lx *LxdpmApi, r *http.Request) Response {
 			resp := containerFilePost(hostname[0][0].(string),name,path,r)
 			return resp
 	case "DELETE":
-
+			resp := containerFileDelete(hostname[0][0].(string),name,path,r)
+			return resp
 	default:
 		return NotFound
 	}
@@ -132,5 +133,26 @@ func containerFilePost(hostname string, cname string,filepath string, r *http.Re
     }
     fmt.Println("Out files: \n"+string(out))
     //Handle this better in case of error
+    return SyncResponse(true,"")
+}
+
+func containerFileDelete(hostname string, cname string,filepath string, r *http.Request) Response {
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	if hostname != "local" {
+		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -k --unix-socket /var/lib/lxd/unix.socket -X DELETE s/1.0/containers/"+cname+"/files?path="+filepath}
+		fmt.Println("\nArgs: ",strings.Join(argstr," "))
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","DELETE","s/1.0/containers/"+cname+"/files?path="+filepath}
+		fmt.Println("\nArgs: ",strings.Join(argstr," "))
+		command = exec.Command("curl", argstr...)
+	}
+    out, err := command.Output()
+    if err != nil {
+        fmt.Println(err)
+    }
+    fmt.Println("Out files: \n"+string(out))
+    //Handle this better in case of error + check if server has required API extension
     return SyncResponse(true,"")
 }
