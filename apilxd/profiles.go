@@ -22,15 +22,7 @@ var profilesCmd = Command{
 	get:  profilesGet,
 	post: profilesPostHost,
 }
-/*
-var profileCmd = Command{
-	name: "profiles/{name}",
-	get: profileGet,
-	put: profilePut,
-	delete: profileDelete,
-	post: profilePost,
-	patch: profilePatch
-}*/
+
 
 func profilesGet(lx *LxdpmApi,  r *http.Request) Response {
 	var keys []string
