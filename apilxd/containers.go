@@ -155,6 +155,15 @@ func parseMetadataFromOperationResponse(input []byte) LxdResponseRaw {
     //fmt.Println(string(resp.Metadata))
     return resp
 }
+
+func parseMetadataFromOperationResponseClean(input []byte) api.Response {
+	var resp = api.Response{}
+    json.NewDecoder(bytes.NewReader(input)).Decode(&resp)
+    //fmt.Println(resp.Metadata)
+    //fmt.Println(string(resp.Metadata))
+    return resp
+}
+
 func containerPostHost(lx *LxdpmApi,  r *http.Request) Response {
 	req := ContainersHostPost{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

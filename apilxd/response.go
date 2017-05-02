@@ -371,7 +371,8 @@ type LxdResponse struct {
 	StatusCode int    `json:"status_code" yaml:"status_code"`
 
 	// Valid only for Async responses
-	Operation string `json:"operation" yaml:"operation"`
+	Operation 	string `json:"operation" yaml:"operation"`
+	Task 		string `json:"task" yaml:"task"`
 
 	// Valid only for Error responses
 	Code  int    `json:"error_code" yaml:"error_code"`
@@ -432,3 +433,48 @@ const (
 	lxdAsyncResponse lxdResponseType = "async"
 	lxdErrorResponse lxdResponseType = "error"
 )
+
+// Task response
+type taskResponse struct {
+	tk *task
+}
+
+func (r *taskResponse) Render(w http.ResponseWriter) error {
+	_, err := r.tk.Run()
+	if err != nil {
+		return err
+	}
+
+	url, md, err := r.tk.Render()
+	if err != nil {
+		return err
+	}
+
+	body := LxdResponseRaw{
+		LxdResponse: LxdResponse{
+			Type:       lxdAsyncResponse,
+			Status:     TaskCreated.String(),
+			StatusCode: int(TaskCreated),
+			Task:  url,
+		},
+		Metadata: md,
+	}
+
+	w.Header().Set("Location", url)
+	w.WriteHeader(202)
+
+	return WriteJSON(w, body)
+}
+
+func (r *taskResponse) String() string {
+	_, md, err := r.tk.Render()
+	if err != nil {
+		return fmt.Sprintf("error: %s", err)
+	}
+
+	return md.ID
+}
+
+func TaskResponse(tk *task) Response {
+	return &taskResponse{tk}
+}
