@@ -10,6 +10,7 @@ import (
 	"github.com/lxc/lxd/shared/api"
 	"strings"
 	"sync"
+	"github.com/gorilla/mux"
 	//"io/ioutil"
 )
 
@@ -415,4 +416,174 @@ func deleteImage(oph OperationHost) {
     if err != nil {
         fmt.Println(err)
     }
+}
+
+var imageCmd = Command{
+	name: "images/{fingerprint}",
+	get: imageGet,
+	put: imagePut,
+	delete: imageDelete,
+}
+
+func getHostnameFromFingerprint(lx *LxdpmApi, fingerprint string) [][]interface{} {
+	inargs := []interface{}{}
+	outargs := []interface{}{"name"}
+
+	result, err := dbQueryScan(lx.db, `SELECT H.name FROM hosts H, images I where I.host_id = H.id and I.fingerprint='`+fingerprint+`';`,inargs,outargs )
+	if err != nil {
+		fmt.Println(err)
+	}
+	return result
+}
+
+func imageGet(lx *LxdpmApi,  r *http.Request) Response {
+	fingerprint := mux.Vars(r)["fingerprint"]
+	hostname := getHostnameFromFingerprint(lx,fingerprint)
+
+	resp := doImageGet(fingerprint,hostname[0][0].(string))
+
+	return resp
+}
+
+func doImageGet(fingerprint string,hostname string) Response {
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	if hostname != "local" {
+		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("curl", argstr...)
+	}
+    out, err := command.Output()
+    if err != nil {
+        fmt.Println(err)
+    }
+    meta := parseSyncResponse(out)
+    return meta
+}
+
+func imagePut(lx *LxdpmApi,  r *http.Request) Response {
+	req := api.ImagePut{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return BadRequest(err)
+	}
+
+	fingerprint := mux.Vars(r)["fingerprint"]
+	hostname := getHostnameFromFingerprint(lx,fingerprint)
+
+	resp := doImagePut(fingerprint,hostname[0][0].(string),req)
+
+	return resp
+}
+
+func doImagePut(fingerprint string,hostname string,req api.ImagePut) Response {
+	body ,err := json.Marshal(req)
+	if err != nil {
+		fmt.Println(err)
+	}
+	strbody := string(body)
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	if hostname != "local" {
+		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket -X PUT -d '"+strbody+"' s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","PUT","-d",strbody,"s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("curl", argstr...)
+	}
+    out, err := command.Output()
+    if err != nil {
+        fmt.Println(err)
+    }
+    meta := parseSyncResponse(out)
+    return meta
+}
+
+
+func imageDelete(lx *LxdpmApi,  r *http.Request) Response {
+	fingerprint := mux.Vars(r)["fingerprint"]
+	hostname := getHostnameFromFingerprint(lx,fingerprint)
+
+	resp := doImageDelete(fingerprint,hostname[0][0].(string))
+
+	return resp
+}
+
+func doImageDelete(fingerprint string,hostname string) Response {
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	if hostname != "local" {
+		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket -X DELETE s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","DELETE","s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("curl", argstr...)
+	}
+    out, err := command.Output()
+    if err != nil {
+        fmt.Println(err)
+    }
+    meta := parseAsyncResponse(out)
+    return meta
+}
+
+var imagesExportCmd = Command{name: "images/{fingerprint}/export", get: imageExport}
+
+func imageExport(lx *LxdpmApi,  r *http.Request) Response {
+	fingerprint := mux.Vars(r)["fingerprint"]
+	hostname := getHostnameFromFingerprint(lx,fingerprint)
+
+	resp := doImageExport(fingerprint,hostname[0][0].(string))
+
+	return resp
+}
+
+func doImageExport(fingerprint string,hostname string) Response {
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	if hostname != "local" {
+		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/images/"+fingerprint+"/export"}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/images/"+fingerprint+"/export"}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("curl", argstr...)
+	}
+    out, err := command.Output()
+    if err != nil {
+        fmt.Println(err)
+    }
+    //fmt.Println(string(out))
+    filename := doImageGetFileName(fingerprint,hostname)
+    saveFile(out,"./images/"+filename)
+    return SyncResponse(true,"Image created.")
+}
+func doImageGetFileName(fingerprint string,hostname string) string {
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	if hostname != "local" {
+		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("curl", argstr...)
+	}
+    out, err := command.Output()
+    if err != nil {
+        fmt.Println(err)
+    }
+    resp := parseMetadataFromContainerResponse(out)
+    filename := resp.Metadata.(map[string]interface{})["filename"].(string)
+
+    return filename
 }

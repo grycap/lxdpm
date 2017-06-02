@@ -15,6 +15,8 @@ type Config struct {
 	Hosts map[string]HostConfig `yaml:"hosts"`
 	//This holds where the configuration is going to be stored.
 	ConfigDir string `yaml:"config-dir"`
+
+	ImageDir string `yaml:"image-dir"`
 }
 
 type HostConfig struct {
