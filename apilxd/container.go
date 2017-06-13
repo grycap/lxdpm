@@ -2,10 +2,8 @@ package apilxd
 
 import (
 	"net/http"
-	"os/exec"
 	"encoding/json"
 	"bytes"
-	"strings"
 	"fmt"
 	"github.com/lxc/lxd/shared/api"
 	"github.com/gorilla/mux"
@@ -43,35 +41,15 @@ func getHostnameFromContainername(lx *LxdpmApi, name string) [][]interface{} {
 }
 
 func containerGet(lx *LxdpmApi, r *http.Request) Response {
-	name := mux.Vars(r)["name"]
+	cname := mux.Vars(r)["name"]
 
-	hostname := getHostnameFromContainername(lx,name)
+	hostname := getHostnameFromContainername(lx,cname)
 
-	resp := containerGetMetadata(hostname[0][0].(string),name)
+	resp,_ := doContainerGet(hostname[0][0].(string),cname)
 
-	//meta := resp.Metadata 
+	endpointResponse,_ := parseResponseRawToSync(resp)
 
-	return SyncResponse(true,resp)
-}
-
-func containerGetMetadata(hostname string, cname string) LxdResponseRaw {
-	argstr := []string{}
-	command := exec.Command("curl",argstr...)
-	if hostname != "local" {
-		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/containers/"+cname}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("ssh", argstr...)
-	} else {
-		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/containers/"+cname}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("curl", argstr...)
-	}
-    out, err := command.Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseMetadataFromContainerResponse(out)
-    return meta
+	return &endpointResponse //SyncResponse(true,meta
 }
 
 func parseMetadataFromContainerResponse(input []byte) LxdResponseRaw {
@@ -82,114 +60,58 @@ func parseMetadataFromContainerResponse(input []byte) LxdResponseRaw {
 
 
 func containerPut(lx *LxdpmApi,  r *http.Request) Response {
-	name := mux.Vars(r)["name"]
-
+	cname := mux.Vars(r)["name"]
+	hostname := getHostnameFromContainername(lx,cname)
 	req := api.ContainerPut{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return BadRequest(err)
 	}
-	fmt.Printf("\nReq: %+v",req)
-	res := doContainerPut(lx,req,name)
-	return AsyncResponse(true,res)
-}
 
+	res,_ := doContainerPut(hostname[0][0].(string),req,cname)
 
-func doContainerPut(lx *LxdpmApi,req api.ContainerPut,cname string) LxdResponseRaw {
-	buf ,err := json.Marshal(req)
-	if err != nil {
-		fmt.Println(err)
-	}
-	hostname := getHostnameFromContainername(lx,cname)
-	argstr := []string{}
-	command := exec.Command("curl",argstr...)
-	fmt.Println("\n"+string(buf))
-	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
-	if hostname[0][0].(string) != "local" {
-		argstr = []string{strings.Join([]string{"troig","@",hostname[0][0].(string)},""),"curl -k --unix-socket /var/lib/lxd/unix.socket -X PUT -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("ssh", argstr...)
-	} else {
-		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","PUT","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("curl", argstr...)
-	}
-	
-    out, err := command.Output()
-    fmt.Println("\nOut: ",string(out))
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseMetadataFromOperationResponse(out)
-    return meta
+	endpointUrl,endpointResponse,_ := parseResponseRawToOperation(res) 
+
+	return OperationResponse(endpointUrl,&endpointResponse)
 }
 
 func containerDelete(lx *LxdpmApi,  r *http.Request) Response {
-	name := mux.Vars(r)["name"]
-	res := doContainerDelete(lx,name)
-	return AsyncResponse(true,res)
-}
+	var endpointResponse api.Operation
+	var endpointUrl string
 
-func doContainerDelete(lx *LxdpmApi,cname string) LxdResponseRaw {
+	cname := mux.Vars(r)["name"]
+
 	hostname := getHostnameFromContainername(lx,cname)
-	argstr := []string{}
-	command := exec.Command("curl",argstr...)
-	if hostname[0][0].(string) != "local" {
-		argstr = []string{strings.Join([]string{"troig","@",hostname[0][0].(string)},""),"curl -k --unix-socket /var/lib/lxd/unix.socket -X DELETE s/1.0/containers/"+cname}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("ssh", argstr...)
-	} else {
-		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","DELETE","s/1.0/containers/"+cname}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("curl", argstr...)
-	}
-	
-    out, err := command.Output()
-    fmt.Println("\nOut: ",string(out))
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseMetadataFromOperationResponse(out)
-    return meta
+
+	res,_ := doContainerDelete(hostname[0][0].(string),cname)
+
+	responseType := operationOrError(res)
+	if responseType == "operation" {
+		endpointUrl,endpointResponse,_ = parseResponseRawToOperation(res)
+		return OperationResponse(endpointUrl,&endpointResponse)
+		}else{
+		errorResp := parseErrorResponse(res)
+		return &errorResp
+		}
 }
-
 func containerPost(lx *LxdpmApi,  r *http.Request) Response {
-	name := mux.Vars(r)["name"]
-
+	var endpointResponse api.Operation
+	var endpointUrl string
+	cname := mux.Vars(r)["name"]
+	hostname := getHostnameFromContainername(lx,cname)
 	req := api.ContainerPost{}
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return BadRequest(err)
 	}
 	fmt.Printf("\nReq: %+v",req)
-	res := doContainerPost(lx,req,name)
-	return AsyncResponse(true,res)
-}
+	res,_ := doContainerPost(hostname[0][0].(string),req,cname)
 
-
-func doContainerPost(lx *LxdpmApi,req api.ContainerPost,cname string) LxdResponseRaw {
-	buf ,err := json.Marshal(req)
-	if err != nil {
-		fmt.Println(err)
-	}
-	hostname := getHostnameFromContainername(lx,cname)
-	argstr := []string{}
-	command := exec.Command("curl",argstr...)
-	fmt.Println("\n"+string(buf))
-	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
-	if hostname[0][0].(string) != "local" {
-		argstr = []string{strings.Join([]string{"troig","@",hostname[0][0].(string)},""),"curl -k --unix-socket /var/lib/lxd/unix.socket -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("ssh", argstr...)
-	} else {
-		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("curl", argstr...)
-	}
-	
-    out, err := command.Output()
-    fmt.Println("\nOut: ",string(out))
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseMetadataFromOperationResponse(out)
-    return meta
+	responseType := operationOrError(res)
+	if responseType == "operation" {
+		endpointUrl,endpointResponse,_ = parseResponseRawToOperation(res)
+		return OperationResponse(endpointUrl,&endpointResponse)
+		}else{
+		errorResp := parseErrorResponse(res)
+		return &errorResp
+		}
 }
