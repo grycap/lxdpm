@@ -49,7 +49,7 @@ func containerGet(lx *LxdpmApi, r *http.Request) Response {
 
 	endpointResponse,_ := parseResponseRawToSync(resp)
 
-	return &endpointResponse //SyncResponse(true,meta
+	return &endpointResponse 
 }
 
 func parseMetadataFromContainerResponse(input []byte) LxdResponseRaw {
