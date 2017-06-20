@@ -6,6 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+    "net/http"
+    "bufio"
+    "strings"
+    "os"
+    "log"
+    "path/filepath"
+    "io/ioutil"
 )
 
 func parseResponseRawToSync(input []byte) (syncResponse,error) {
@@ -156,4 +163,55 @@ func parseOperationResponse(input []byte) (api.Operation,error) {
 			return operationInfo,err
 		}
     return operationInfo,nil
+}
+
+func getResponseType(input []byte) string {
+    var resp = api.Response{}
+    json.NewDecoder(bytes.NewReader(input)).Decode(&resp)
+    if resp.Type == "error" {
+        return "error"
+    }else if resp.Type == "sync" {
+        return "sync"
+    }else if resp.Type == "async" {
+        return "async"
+    }else if resp.Operation != "" && resp.Type == "async" {
+        return "operation"
+    }else {
+        return "file"
+    }
+}
+
+func createFileResponse(body string,headers string,path string,r *http.Request) Response {
+    var lxdHeaders map[string]string = map[string]string{}
+
+    scanner := bufio.NewScanner(strings.NewReader(headers))
+    scanner.Scan()
+    for scanner.Scan() {
+        splitted := strings.Split(scanner.Text(),": ")
+        if strings.HasPrefix(splitted[0],"X-Lxd"){
+            lxdHeaders[splitted[0]] = splitted[1]
+            fmt.Println(lxdHeaders)
+        }
+    }
+    if err := scanner.Err();err != nil {
+        fmt.Fprintln(os.Stderr, "reading standard input:", err)
+    }
+
+    temp, err := ioutil.TempFile("", "lxd_forkgetfile_")
+    if err != nil {
+        return InternalError(err)
+    }
+
+    if _, err := temp.Write([]byte(body)); err != nil {
+        log.Fatal(err)
+    }
+    defer temp.Close()
+
+    files := make([]fileResponseEntry, 1)
+    files[0].identifier = filepath.Base(path)
+    files[0].path = temp.Name()
+    files[0].filename = filepath.Base(path)
+
+    return FileResponse(r,files,lxdHeaders,true)
+
 }

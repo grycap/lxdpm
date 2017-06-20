@@ -3,8 +3,6 @@ package apilxd
 import (
 	"net/http"
 	"encoding/json"
-	//"bytes"
-	"fmt"
 	"github.com/lxc/lxd/shared/api"
 	"github.com/gorilla/mux"
 )
@@ -12,8 +10,6 @@ import (
 func snapshotsGet(lx *LxdpmApi, r *http.Request) Response {
 	name := mux.Vars(r)["name"]
 	snap := mux.Vars(r)["snapshotName"]
-
-	fmt.Println("Llego al endpoint")
 
 	hostname := getHostnameFromContainername(lx,name)
 
@@ -30,7 +26,7 @@ func snapshotsPost(lx *LxdpmApi, r *http.Request) Response {
 	cname := mux.Vars(r)["name"]
 	snap := mux.Vars(r)["snapshotName"]
 	hostname := getHostnameFromContainername(lx,cname)
-	req := api.ContainerSnapshotsPost{}
+	req := api.ContainerSnapshotPost{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return BadRequest(err)
 	}
