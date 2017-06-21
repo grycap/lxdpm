@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/lxc/lxd/shared"
+	"github.com/lxc/lxd/shared/api"
 )
 
 func WriteJSON(w http.ResponseWriter, body interface{}) error {
@@ -65,3 +68,48 @@ func loadModule(module string) error {
 
 	return shared.RunCommand("modprobe", module)
 }
+
+func parseAsyncResponse(input []byte) Response {
+	req := api.ResponseRaw{}
+	fmt.Println(input)
+	fmt.Println(string(input))
+	if err := json.NewDecoder(bytes.NewReader(input)).Decode(&req); err != nil {
+		return BadRequest(err)
+	}
+	fmt.Printf("\nReq: %+v",req)
+
+
+	return AsyncResponse(true,req.Metadata)
+
+}
+func saveFile(input []byte,filename string) error {
+	os.Mkdir(filepath.Dir(filename), 0700)
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("cannot create file: %v", err)
+	}
+	defer f.Close()
+	defer os.Remove(filename + ".new")
+
+	_, err = f.Write(input)
+	if err != nil {
+		return fmt.Errorf("cannot write file: %v", err)
+	}
+	f.Close()
+	return nil
+}
+
+/*
+func parseFileResponse(input []byte) Response {
+	req := fileResponse{}
+	fmt.Println(input)
+	fmt.Println(string(input))
+	if err := json.NewDecoder(bytes.NewReader(input)).Decode(&req); err != nil {
+		return BadRequest(err)
+	}
+	fmt.Printf("\nReq: %+v",req)
+
+
+	return req
+
+}*/

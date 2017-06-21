@@ -279,6 +279,42 @@ func FileResponse(r *http.Request, files []fileResponseEntry, headers map[string
 	return &fileResponse{r, files, headers, removeAfterServe}
 }
 
+// Operation response
+type operationResponse struct {
+	op *api.Operation
+	url string
+}
+
+func (r *operationResponse) Render(w http.ResponseWriter) error {
+
+	url, md := r.url,r.op
+
+	body := api.ResponseRaw{
+		Response: api.Response{
+			Type:       api.AsyncResponse,
+			Status:     api.OperationCreated.String(),
+			StatusCode: int(api.OperationCreated),
+			Operation:  url,
+		},
+		Metadata: md,
+	}
+
+	w.Header().Set("Location", url)
+	w.WriteHeader(202)
+
+	return WriteJSON(w, body)
+}
+
+func (r *operationResponse) String() string {
+	md := r.op
+
+	return md.ID
+}
+
+func OperationResponse(url string,op *api.Operation) Response {
+	return &operationResponse{op,url}
+}
+
 // Error response
 type errorResponse struct {
 	code int
