@@ -53,11 +53,20 @@ CREATE TABLE IF NOT EXISTS schema (
     updated_at DATETIME NOT NULL,
     UNIQUE (version)
 );
+CREATE TABLE IF NOT EXISTS planner (
+    id INTEGER NOT NULL,
+    state VARCHAR(20) NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT Id_PK PRIMARY KEY (id),
+    CONSTRAINT planner_onlyOneRow CHECK (id=1)
+);
 `
 
 const DUMMY_DATA string = `INSERT INTO hosts (id, name, ip) VALUES (1,'local','');
 INSERT INTO hosts (id, name, ip) VALUES (2,'lxdpm02','');
-INSERT INTO hosts (id, name, ip) VALUES (3,'lxdpm03','');`
+INSERT INTO hosts (id, name, ip) VALUES (3,'lxdpm03','');
+INSERT INTO planner (id, name, updated_at) VALUES (1,'random','00:00:00');
+`
 
 func enableForeignKeys(conn *sqlite3.SQLiteConn) error {
 	_, err := conn.Exec("PRAGMA foreign_keys=ON;", nil)

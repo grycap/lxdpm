@@ -33,6 +33,27 @@ func parseResponseRawToSync(input []byte) (syncResponse,error) {
     return syncResp,nil
 }
 
+func parseResponseRawToSyncContainerGet(input []byte,hostname string) (syncResponse,error) {
+    var rawResp = api.ResponseRaw{}
+    var syncResp = syncResponse{}
+
+    json.NewDecoder(bytes.NewReader(input)).Decode(&rawResp)
+
+    syncResp.success = true
+
+    if rawResp.Response.Status != "Success" {
+        syncResp.success = false
+    }
+    if rawResp.Metadata != nil {
+        syncResp.metadata = rawResp.Metadata
+    }
+    lxdpmHeaders := make(map[string]string,1)
+    lxdpmHeaders["X-Lxdpm-hostname"] = hostname
+    syncResp.headers = lxdpmHeaders
+
+    return syncResp,nil
+}
+
 func parseResponseRawToAsync(input []byte) (asyncResponse,error) {
 	var rawResp = api.ResponseRaw{}
 	var asyncResp = asyncResponse{}
@@ -214,4 +235,12 @@ func createFileResponse(body string,headers string,path string,r *http.Request) 
 
     return FileResponse(r,files,lxdHeaders,true)
 
+}
+
+func parseMetadataFromMultipleContainersResponse(hostname string, input []byte) (res HostContainerMetadata) {
+    var resp = api.Response{}
+    json.NewDecoder(bytes.NewReader(input)).Decode(&resp)
+    res.Name = hostname
+    json.NewDecoder(bytes.NewReader(resp.Metadata)).Decode(&res.Containers)
+    return res
 }

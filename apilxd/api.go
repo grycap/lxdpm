@@ -24,6 +24,7 @@ type LxdpmApi struct {
 	mux 		*mux.Router
 	Cli 		*lxd.Client
 	db 			*sql.DB
+	planner 	*Planner
 	clientCerts	[]x509.Certificate
 	DefConfig 	*Config
 }
@@ -54,6 +55,7 @@ var api10 = []Command{
 	imagesCmd,
 	imageCmd,
 	imagesExportCmd,
+	plannerCmd,
 }
 
 func (lx *LxdpmApi) createCmd(version string, c Command) {
@@ -111,6 +113,8 @@ func (lx *LxdpmApi) Init() {
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	lx.planner = &Planner{db: lx.db}
 
 	var certpath string = ""
 	var keypath string = ""

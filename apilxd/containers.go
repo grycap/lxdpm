@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"os/exec"
 	"encoding/json"
 	"bytes"
 	"github.com/lxc/lxd/shared/api"
@@ -34,7 +33,7 @@ type HostContainerMetadata struct {
 var containersCmd = Command{
 	name: "containers",
 	get:  containersGetAllLXD,
-	post: containerPostHost,
+	post: containerPostPlanner,
 }
 
 func containersGetAllLXD(lx *LxdpmApi,  r *http.Request) Response {
@@ -55,12 +54,8 @@ func containersGetAllLXD(lx *LxdpmApi,  r *http.Request) Response {
 
 		go func (key string) {
 			defer wg.Done()
-			if DefaultHosts[key].Name == "local" {
-					metadata_hosts <- containersGetMetadataLocal()
-			} else {
-					metadata_hosts <- containersGetMetadata(DefaultHosts[key].Name)
-			}
-			
+			out,_ := doContainersGet(DefaultHosts[key].Name)
+			metadata_hosts <- parseMetadataFromMultipleContainersResponse(key,out)
 		}(k)
 	}
 	//fmt.Printf("%+v %s",metadata_hosts,cap(metadata_hosts))
@@ -73,79 +68,14 @@ func containersGetAllLXD(lx *LxdpmApi,  r *http.Request) Response {
 		addContainersToHostDB(lx, v.Name ,v.Containers)
 		resultLXD = append(resultLXD,(v.Containers)...)
 	}
+
 	return SyncResponse(true,resultLXD)
-}
-
-func containersGetAll(lx *LxdpmApi,  r *http.Request) Response {
-	var keys []string
-	for k := range DefaultHosts {
-		keys = append(keys,k)
-	}
-	var result []HostContainerMetadata
-	var wg sync.WaitGroup
-	var metadata_hosts = make(chan HostContainerMetadata,len(keys))
-	defer close(metadata_hosts)
-	
-	wg.Add(len(keys))
-	sort.Strings(keys)
-	fmt.Println(keys)
-	for _,k := range keys {
-
-		go func (key string) {
-			defer wg.Done()
-			if DefaultHosts[key].Name == "local" {
-					metadata_hosts <- containersGetMetadataLocal()
-			} else {
-					metadata_hosts <- containersGetMetadata(DefaultHosts[key].Name)
-			}
-			
-		}(k)
-	}
-	//fmt.Printf("%+v %s",metadata_hosts,cap(metadata_hosts))
-	
-	for i :=0 ;i < len(keys); i++ {
-		result = append(result,<-metadata_hosts)
-	}
-	wg.Wait()
-	return SyncResponse(true,result)
-}
-func containersGetMetadata(hostname string) HostContainerMetadata {
-
-	argstr := []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/containers"}  
-    out, err := exec.Command("ssh", argstr...).Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseMetadataFromResponse(hostname,out)
-    //fmt.Println(meta)
-    //fmt.Println(result)
-    return meta
-}
-
-func containersGetMetadataLocal() HostContainerMetadata {
-
-	argstr := []string{"-s","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/containers"}
-    out, err := exec.Command("curl", argstr...).Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseMetadataFromResponse("local",out)
-    //fmt.Println(meta)
-    //fmt.Println(result)
-    return meta
-}
-func parseMetadataFromResponse(hostname string, input []byte) (res HostContainerMetadata) {
-	var resp = api.Response{}
-    json.NewDecoder(bytes.NewReader(input)).Decode(&resp)
-    res.Name = hostname
-    json.NewDecoder(bytes.NewReader(resp.Metadata)).Decode(&res.Containers)
-    return res
 }
 
 type ContainersHostPost struct {
 
 	Hostname   string          `json:"hostname" yaml:"hostname"`
-	ContainersPost api.ContainersPost `json:"containersPost" yaml:"containerPost"`
+	ContainersPost api.ContainersPost `json:"containersPost" yaml:"containersPost"`
 }
 
 func parseMetadataFromOperationResponse(input []byte) LxdResponseRaw {
@@ -163,44 +93,47 @@ func parseMetadataFromOperationResponseClean(input []byte) api.Response {
     //fmt.Println(string(resp.Metadata))
     return resp
 }
-
+/*
 func containerPostHost(lx *LxdpmApi,  r *http.Request) Response {
+	var endpointResponse api.Operation
+	var endpointUrl string
 	req := ContainersHostPost{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return BadRequest(err)
 	}
 	fmt.Printf("\nReq: %+v",req)
-	res := containersPost(req)
-	return AsyncResponse(true,res)
+	res,_ := doContainersPost(req)
+	responseType := operationOrError(res)
+	if responseType == "operation" {
+		endpointUrl,endpointResponse,_ = parseResponseRawToOperation(res)
+		return OperationResponse(endpointUrl,&endpointResponse)
+		}else{
+		errorResp := parseErrorResponse(res)
+		return &errorResp
+		}
 }
-
-
-func containersPost(req ContainersHostPost) LxdResponseRaw {
-	buf ,err := json.Marshal(req.ContainersPost)
+*/
+func containerPostPlanner(lx *LxdpmApi,  r *http.Request) Response {
+	var endpointResponse api.Operation
+	var endpointUrl string
+	req := api.ContainersPost{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return BadRequest(err)
+	}
+	fmt.Printf("\nReq: %+v",req)
+	hostname,err := lx.planner.HostToDeploy()
 	if err != nil {
-		fmt.Println(err)
+		return BadRequest(err)
 	}
-	argstr := []string{}
-	command := exec.Command("curl",argstr...)
-	fmt.Println("\n"+string(buf))
-	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
-	if req.Hostname != "" {
-		argstr = []string{strings.Join([]string{"troig","@",req.Hostname},""),"curl -k --unix-socket /var/lib/lxd/unix.socket -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers"}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("ssh", argstr...)
-	} else {
-		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers"}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("curl", argstr...)
-	}
-	
-    out, err := command.Output()
-    fmt.Println("\nOut: ",string(out))
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseMetadataFromOperationResponse(out)
-    return meta
+	res,_ := doContainersPlannerPost(req,hostname)
+	responseType := operationOrError(res)
+	if responseType == "operation" {
+		endpointUrl,endpointResponse,_ = parseResponseRawToOperation(res)
+		return OperationResponse(endpointUrl,&endpointResponse)
+		}else{
+		errorResp := parseErrorResponse(res)
+		return &errorResp
+		}
 }
 
 func getHostId(lx *LxdpmApi,name string) string {
@@ -237,6 +170,18 @@ func getContainerIdDB(lx *LxdpmApi,name string) (string,error) {
 func createContainerDB(lx *LxdpmApi,hostid string,cname string) error{
 	q := `INSERT INTO containers (name,host_id) VALUES (?,?)`
 	_,err := dbExec(lx.db,q,cname,hostid)
+	return err
+}
+
+func deleteContainerDB(lx *LxdpmApi,cname string) error{
+	q := `DELETE FROM containers WHERE name=?`
+	_,err := dbExec(lx.db,q,cname)
+	return err
+}
+
+func updateContainerDB(lx *LxdpmApi,cname string,newname string) error{
+	q := `UPDATE containers SET name=? WHERE name=?;`
+	_,err := dbExec(lx.db,q,newname,cname)
 	return err
 }
 

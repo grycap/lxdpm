@@ -47,7 +47,7 @@ func containerGet(lx *LxdpmApi, r *http.Request) Response {
 
 	resp,_ := doContainerGet(hostname[0][0].(string),cname)
 
-	endpointResponse,_ := parseResponseRawToSync(resp)
+	endpointResponse,_ := parseResponseRawToSyncContainerGet(resp,hostname[0][0].(string))
 
 	return &endpointResponse 
 }
@@ -86,6 +86,10 @@ func containerDelete(lx *LxdpmApi,  r *http.Request) Response {
 
 	responseType := operationOrError(res)
 	if responseType == "operation" {
+		err := deleteContainerDB(lx,cname)
+		if err != nil {
+				fmt.Println(err)
+			}
 		endpointUrl,endpointResponse,_ = parseResponseRawToOperation(res)
 		return OperationResponse(endpointUrl,&endpointResponse)
 		}else{
@@ -104,10 +108,14 @@ func containerPost(lx *LxdpmApi,  r *http.Request) Response {
 		return BadRequest(err)
 	}
 	fmt.Printf("\nReq: %+v",req)
-	res,_ := doContainerPost(hostname[0][0].(string),req,cname)
+	res,newname,_ := doContainerPost(hostname[0][0].(string),req,cname)
 
 	responseType := operationOrError(res)
 	if responseType == "operation" {
+		err := updateContainerDB(lx,cname,newname)
+		if err != nil {
+				fmt.Println(err)
+			}
 		endpointUrl,endpointResponse,_ = parseResponseRawToOperation(res)
 		return OperationResponse(endpointUrl,&endpointResponse)
 		}else{
