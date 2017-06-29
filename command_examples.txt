@@ -1,0 +1,107 @@
+"Checks local lxd config"
+curl -sk -X GET https://localhost:8080/1.0 | json_pp
+
+"Checks all containers GET"
+curl -sk -X GET https://localhost:8080/1.0/containers | json_pp
+
+"Post a new container in Host"- DEPRECATED
+curl -k -X POST -d '{"hostname":"lxdpm02", "containersPost": {"name": "xenial", "source": {"type": "image", "protocol": "simplestreams", "server": "https://cloud-images.ubuntu.com/daily", "alias": "16.04"}}}' https://localhost:8080/1.0/containers | json_pp
+curl -k -X POST -d '{"hostname":"lxdpm02", "containersPost": {"name": "testcarlos", "source": {"type": "image", "protocol": "simplestreams", "server": "https://cloud-images.ubuntu.com/daily", "alias": "16.04"}}}' https://localhost:8080/1.0/containers | json_pp
+
+"Post a new container in Host"
+curl -k -X POST -d '{"name": "ubuntu16", "source": {"type": "image", "protocol": "simplestreams", "server": "https://cloud-images.ubuntu.com/daily", "alias": "16.04"}}' https://localhost:8080/1.0/containers | json_pp
+
+"Get container config"
+curl -sk -X GET https://localhost:8080/1.0/containers/test01 | json_pp
+// Añadir host a los resultados en un campo distinto de metadata
+
+"Change container name"
+curl -sk -X POST -d '{"name": "test01"}' https://localhost:8080/1.0/containers/segundo01 | json_pp
+
+"Update(substitute) container config"
+curl -sk -X PUT -d '{"config":{"limits.cpu":"3","volatile.apply_template":"create","volatile.base_image":"41fecb6b51a28d886ac58aba29bf83efb300ba7015179104a62577fa27e4a789","volatile.eth0.hwaddr":"00:16:3e:d6:2c:23"}}' https://localhost:8080/1.0/containers/test01 | json_pp
+
+"Delete container"
+curl -sk -X DELETE https://localhost:8080/1.0/containers/segundo01 | json_pp
+
+"Get state of container"
+curl -sk -X GET https://localhost:8080/1.0/containers/solitario3/state | json_pp
+
+"Start container"
+curl -sk -X PUT -d '{"action": "start"}' https://localhost:8080/1.0/containers/solitario3/state | json_pp
+
+"Stop Container"
+curl -sk -X PUT -d '{"action": "stop"}' https://localhost:8080/1.0/containers/solitario3/state | json_pp
+
+"Get content of a file"
+curl -sk -X GET https://localhost:8080/1.0/containers/test01/files?path=/etc/hosts
+
+"Two examples of uploading a file to a container"
+curl -k -X POST -H 'Content-Type: application/octet-stream' -d 'Raw text' https://localhost:8080/1.0/containers/test01/files?path=/tmp/pruebesita
+
+curl -k -X POST -H 'Content-Type: application/octet-stream' --data-binary @filename https://localhost:8080/1.0/containers/test01/files?path=/tmp/pruebesita
+
+"Get container snapshots"
+curl -sk -X GET https://localhost:8080/1.0/containers/test01/snapshots
+
+"Create a container Snapshot."
+curl -sk -X POST -d '{ "name": "testSnap","stateful": false }' https://localhost:8080/1.0/containers/testLXD/snapshots
+
+"Get snapshot information from container"
+curl -sk -X GET https://localhost:8080/1.0/containers/test01/snapshots/firstsnap | json_pp
+
+"Change snapshot name"
+curl -sk -X POST -d '{ "name": "testNewToDelete" }' https://localhost:8080/1.0/containers/test01/snapshots/primeritosnap
+
+"Delete snapshot from container"
+curl -sk -X DELETE https://localhost:8080/1.0/containers/test01/snapshots/primeritoSnap | json_pp
+
+"Get profiles."
+curl -sk -X GET https://localhost:8080/1.0/profiles | json_pp
+
+"Create profile"
+curl -k -X POST -d '{"hostname":"local", "profilesPost": {"name": "lowRAM","description": "Some description string","config": {"limits.memory": "2GB" },"devices": {"kvm": {"type": "unix-char","path": "/dev/kvm"}}}}' https://localhost:8080/1.0/profiles | json_pp
+
+"Get profile."
+curl -sk -X GET https://localhost:8080/1.0/profiles/lowRAM
+
+"Put profile(modify it)"
+curl -sk -X PUT -d '{"config": {"limits.memory": "3GB"},"description": "Just a profile test.","devices": {"kvm": {"path": "/dev/kvm","type": "unix-char"}}}' https://localhost:8080/1.0/profiles/lowRAM
+
+"Delete a profile"
+curl -sk -X DELETE https://localhost:8080/1.0/profiles/todelete
+
+"Post profile (Change name)"
+curl -k -X POST -d '{"name": "3RAM"}' https://localhost:8080/1.0/profiles/lowRAM | json_pp
+
+"Get all images"
+curl -sk -X GET https://localhost:8080/1.0/images
+
+"Post an image to all hosts"
+curl -k -X POST -H 'Content-Type: application/octet-stream' --data-binary @image.tar https://localhost:8080/1.0/images #FAILS
+
+curl -sk -X POST -d '{"filename": "imageTest","public":   true,"properties": {"os": "Ubuntu"},"aliases": [{"name": "test-image", "description": "Attempt to send image"}],"source": {"type": "url","url": "https://dl.stgraber.org/lxd"}}' https://localhost:8080/1.0/images #WORKS
+
+curl -sk -X POST -d '{"filename": "imageTest","public":   true,"properties": {"os": "Ubuntu"},"aliases": [{"name": "test-image", "description": "Attempt to send image"}],"source": {"type": "url","url": "https://dl.stgraber.org/lxd/ubuntu-core/"}}' https://localhost:8080/1.0/images #WORKS
+
+"Post an image to all hosts with Headers"
+curl -sk -H 'X-LXD-filename: pruebaHeaders' -H 'X-LXD-public: true' -H 'X-LXD-properties: os=Ubuntu&alias=pruebaComun' -X POST -d '{"filename": "pruebaHeaders","public":   true,"properties": {"os": "Ubuntu"},"aliases": [{"name": "test-headers", "description": "Attempt to send image"}],"source": {"type": "url","url": "https://dl.stgraber.org/lxd"}}' https://localhost:8080/1.0/images 
+
+
+"get image from fingerprint"
+curl -sk -X GET https://localhost:8080/1.0/images/74186c79ca2f22c1a566ebaf99f67f52313814429d110b16677b7d74b9e6e26b | json_pp
+
+"put image"
+curl -sk -X PUT -d '{"auto_update": true,"properties" : {"os" : "Ubuntu","architecture" : "x86_64","description" : "Busybox x86_64","name" : "busybox-x86_64-test"},"public": true}' https://localhost:8080/1.0/images/74186c79ca2f22c1a566ebaf99f67f52313814429d110b16677b7d74b9e6e26b | json_pp
+
+"Exec command in container"
+curl -sk -X POST -d '{"command": ["/bin/bash"],"environment": {},"wait-for-websocket": true,"record-output": false,"interactive": false,"width": 80,"height": 25}' https://localhost:8080/1.0/containers/test01/exec
+
+"Planner GET"
+curl -sk -X GET https://localhost:8080/1.0/planner
+
+"Planner POST"
+curl -sk -X POST -d '{"state": "random"}' https://localhost:8080/1.0/planner
+
+"Planner PUT"
+curl -sk -X POST -d '{"state": "random"}' https://localhost:8080/1.0/planner

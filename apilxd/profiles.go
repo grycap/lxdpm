@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"os/exec"
 	"encoding/json"
 	"bytes"
 	"github.com/lxc/lxd/shared/api"
@@ -42,12 +41,8 @@ func profilesGet(lx *LxdpmApi,  r *http.Request) Response {
 
 		go func (key string) {
 			defer wg.Done()
-			if DefaultHosts[key].Name == "local" {
-					metadata_hosts <- profilesGetMetadataLocal()
-			} else {
-					metadata_hosts <- profilesGetMetadata(DefaultHosts[key].Name)
-			}
-			
+			out,_ := doProfilesGet(DefaultHosts[key].Name)
+			metadata_hosts <- parseProfileMetadataFromResponse(key,out)
 		}(k)
 	}
 	//fmt.Printf("%+v %s",metadata_hosts,cap(metadata_hosts))
@@ -61,32 +56,6 @@ func profilesGet(lx *LxdpmApi,  r *http.Request) Response {
 		resultLXD = append(resultLXD,(v.Profiles)...)
 	}
 	return SyncResponse(true,resultLXD)
-}
-
-func profilesGetMetadata(hostname string) HostProfileMetadata {
-
-	argstr := []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/profiles"}  
-    out, err := exec.Command("ssh", argstr...).Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseProfileMetadataFromResponse(hostname,out)
-    //fmt.Println(meta)
-    //fmt.Println(result)
-    return meta
-}
-
-func profilesGetMetadataLocal() HostProfileMetadata {
-
-	argstr := []string{"-s","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/profiles"}
-    out, err := exec.Command("curl", argstr...).Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseProfileMetadataFromResponse("local",out)
-    //fmt.Println(meta)
-    //fmt.Println(result)
-    return meta
 }
 
 func parseProfileMetadataFromResponse(hostname string, input []byte) (res HostProfileMetadata) {
@@ -151,36 +120,13 @@ func profilesPostHost(lx *LxdpmApi,  r *http.Request) Response {
 		return BadRequest(err)
 	}
 	fmt.Printf("\nReq: %+v",req)
-	res := profilesPost(req)
-	return SyncResponse(true,res)
-}
-
-
-func profilesPost(req ProfilesHostPost) LxdResponseRaw {
-	buf ,err := json.Marshal(req.ProfilesPost)
-	if err != nil {
-		fmt.Println(err)
+	res,_ := doProfilesPost(req)
+	responseType := getResponseType(res)
+	if responseType == "sync" {
+		endpointResponse,_ := parseResponseRawToSync(res)
+		return &endpointResponse
+	}else {
+		errorResp := parseErrorResponse(res)
+		return &errorResp
 	}
-	argstr := []string{}
-	command := exec.Command("curl",argstr...)
-	fmt.Println("\n"+string(buf))
-	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
-	if req.Hostname != "local" {
-		argstr = []string{strings.Join([]string{"troig","@",req.Hostname},""),"curl -k --unix-socket /var/lib/lxd/unix.socket -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/profiles"}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("ssh", argstr...)
-	} else {
-		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/profiles"}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("curl", argstr...)
-	}
-	
-    out, err := command.Output()
-    fmt.Println("\nOut: ",string(out))
-    if err != nil {
-        fmt.Println(err)
-    }
-    //Fix this to return a SyncResponse
-    meta := parseMetadataFromOperationResponse(out)
-    return meta
 }
