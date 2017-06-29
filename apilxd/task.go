@@ -113,7 +113,6 @@ func (tk *task) Run() (chan error, error) {
 	if tk.status != api.Pending {
 		return nil, fmt.Errorf("Only pending tasks can be started")
 	}
-	fmt.Println("VIVEEEEE!")
 	chanRun := make(chan error, 1)
 
 	tk.lock.Lock()

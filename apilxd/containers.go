@@ -9,20 +9,6 @@ import (
 	"github.com/lxc/lxd/shared/api"
 	"strings"
 	"sync"
-	//"os"
-	//"log"
-	/*"io"
-	"os/exec"
-	"path/filepath"
-	
-	"time"
-
-	"gopkg.in/lxc/go-lxc.v2"
-
-	"github.com/lxc/lxd/lxd/types"
-	"github.com/lxc/lxd/shared"
-	"github.com/lxc/lxd/shared/api"
-	"github.com/lxc/lxd/shared/osarch"*/
 )
 
 type HostContainerMetadata struct {

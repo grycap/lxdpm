@@ -12,6 +12,7 @@ import (
 	"sync"
 	"github.com/gorilla/mux"
 	//"io/ioutil"
+	"errors"
 )
 
 var imagesCmd = Command{
@@ -43,12 +44,8 @@ func imagesGetAllLXD(lx *LxdpmApi,  r *http.Request) Response {
 
 		go func (key string) {
 			defer wg.Done()
-			if DefaultHosts[key].Name == "local" {
-					metadata_hosts <- imagesGetMetadataLocal()
-			} else {
-					metadata_hosts <- imagesGetMetadata(DefaultHosts[key].Name)
-			}
-			
+			out,_ := doImagesGet(DefaultHosts[key].Name)
+			metadata_hosts <- parseMetadataFromAllImagesResponse(key,out)
 		}(k)
 	}
 	//fmt.Printf("%+v %s",metadata_hosts,cap(metadata_hosts))
@@ -58,36 +55,10 @@ func imagesGetAllLXD(lx *LxdpmApi,  r *http.Request) Response {
 	}
 	wg.Wait()
 	for _,v := range result {
-		addImagesToHostDB(lx, v.Name ,v.Images)
+		addImagesToHostDB(lx,v.Images)
 		resultLXD = append(resultLXD,(v.Images)...)
 	}
 	return SyncResponse(true,resultLXD)
-}
-
-func imagesGetMetadata(hostname string) HostImageMetadata {
-
-	argstr := []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/images"}  
-    out, err := exec.Command("ssh", argstr...).Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseImagesMetadataFromResponse(hostname,out)
-    //fmt.Println(meta)
-    //fmt.Println(result)
-    return meta
-}
-
-func imagesGetMetadataLocal() HostImageMetadata {
-
-	argstr := []string{"-s","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/images"}
-    out, err := exec.Command("curl", argstr...).Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseImagesMetadataFromResponse("local",out)
-    //fmt.Println(meta)
-    //fmt.Println(result)
-    return meta
 }
 
 func parseImagesMetadataFromResponse(hostname string, input []byte) (res HostImageMetadata) {
@@ -114,14 +85,13 @@ func getImageIdDB(lx *LxdpmApi,name string) (string,error) {
 	return result[0][0].(string) ,nil
 }
 
-func createImageDB(lx *LxdpmApi,hostid string,fingerprint string) error{
-	q := `INSERT INTO images (fingerprint,host_id) VALUES (?,?)`
-	_,err := dbExec(lx.db,q,fingerprint,hostid)
+func createImageDB(lx *LxdpmApi,fingerprint string) error{
+	q := `INSERT INTO images (fingerprint) VALUES (?)`
+	_,err := dbExec(lx.db,q,fingerprint)
 	return err
 }
 
-func addImagesToHostDB(lx *LxdpmApi,hostname string,images []string) {
-	hostid := getHostId(lx,hostname)
+func addImagesToHostDB(lx *LxdpmApi,images []string) {
 	var fingerprint []string
 	for _,image := range images {
 
@@ -132,13 +102,26 @@ func addImagesToHostDB(lx *LxdpmApi,hostname string,images []string) {
 			fmt.Println(err)
 		} 
 		if id == "" {
-			err := createImageDB(lx,hostid,fingerprint[len(fingerprint)-1])
+			err := createImageDB(lx,fingerprint[len(fingerprint)-1])
 			if err != nil {
 				fmt.Println(err)
 			}
 		} 
 	}
 }
+func addImageToDB(lx *LxdpmApi,fingerprint string) {
+	id,err := getImageIdDB(lx,fingerprint)
+	if err != nil {
+		fmt.Println(err)
+	}
+	if id == "" {
+		err := createImageDB(lx,fingerprint)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+}
+
 
 func getHostsDB(lx *LxdpmApi) ([][]interface {},error) {
 	inargs := []interface{}{}
@@ -155,49 +138,6 @@ func getHostsDB(lx *LxdpmApi) ([][]interface {},error) {
 	return result ,nil
 }
 
-/*func imagesPostHost(lx *LxdpmApi,  r *http.Request) Response {
-	var keys []string
-	var wg sync.WaitGroup
-	//var resultLXD []string
-	
-	req := api.ImagesPost{}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return BadRequest(err)
-	}
-	fmt.Printf("\nReq: %+v",req)
-	hosts, err:= getHostsDB(lx)
-	if err != nil {
-		fmt.Println(err)
-	}
-	for _, host := range hosts {
-		keys = append(keys,host[1].(string))
-	}
-	var result []LxdResponseRaw
-	var metadata_hosts = make(chan LxdResponseRaw,len(keys))
-	defer close(metadata_hosts)
-	wg.Add(len(keys))
-	sort.Strings(keys)
-	fmt.Println(keys)
-	for i,_ := range keys {
-		key := keys[i] 
-		go func (key string,freq api.ImagesPost) {
-			defer wg.Done()
-			metadata_hosts <- doImagePost(key,freq)
-		}(key,req)
-	}
-	for i :=0 ;i < len(keys); i++ {
-		result = append(result,<-metadata_hosts)
-		//fmt.Printf("Soy result: %+v",result)
-	}
-	wg.Wait()
-	for _,v := range result {
-		fmt.Printf("\nSoy v: %+v",v)
-		//resultLXD = append(resultLXD,v)
-	}
-	//res := imagesPost(req)
-	return AsyncResponse(true,"")
-}*/
-
 type OperationImageInfo struct {
 	Operation 	string
 	Host 		string
@@ -209,7 +149,7 @@ func imagesPost(lx *LxdpmApi,  r *http.Request) Response {
 		return BadRequest(err)
 	}
 	run := func(op *task) error {
-		result,err := imagesPostHost(lx,req)
+		result,err := imagesPostHost(lx,req,r)
 		fmt.Println(result)
 		fmt.Println(err)
 		return nil
@@ -217,15 +157,15 @@ func imagesPost(lx *LxdpmApi,  r *http.Request) Response {
 
 	op, err := taskCreate(taskClassOp, nil, nil, run, nil, nil)
 	//fmt.Printf("Soy la op: %+v\n",op)
-	fmt.Println("Soy el error de creación: ",err)
+	fmt.Println("Creation error: ",err)
 	tk,err := taskGet(op.id)
 	//fmt.Printf("Soy la task: %+v\n",tk)
 	//tk.Run() //De normal se llama al hacer el render de operation en Response.go
-	fmt.Println("Soy el error de obtención: ",err)
+	fmt.Println("Task Get error: ",err)
 	return TaskResponse(tk)
 }
 
-func imagesPostHost(lx *LxdpmApi,  imageJson api.ImagesPost ) ([]OperationHost, error) {
+func imagesPostHost(lx *LxdpmApi,  imageJson api.ImagesPost, realRequest *http.Request) ([]OperationHost, error) {
 	var keys []string
 	var wg sync.WaitGroup
 	//var resultLXD []string
@@ -246,10 +186,10 @@ func imagesPostHost(lx *LxdpmApi,  imageJson api.ImagesPost ) ([]OperationHost, 
 	fmt.Println(keys)
 	for i,_ := range keys {
 		key := keys[i] 
-		go func (key string,freq api.ImagesPost) {
+		go func (key string,freq api.ImagesPost,request *http.Request) {
 			defer wg.Done()
-			operation_info <- doImagePost(key,freq)
-		}(key,imageJson)
+			operation_info <- doImagePost(key,freq,request)
+		}(key,imageJson,realRequest)
 	}
 	for i :=0 ;i < len(keys); i++ {
 		result = append(result,<-operation_info)
@@ -267,17 +207,14 @@ func imagesPostHost(lx *LxdpmApi,  imageJson api.ImagesPost ) ([]OperationHost, 
 	return opResults,nil
 }
 
-func doImagePost(hostname string,r api.ImagesPost ) OperationImageInfo {
+func doImagePost(hostname string,r api.ImagesPost, originalrequest *http.Request ) OperationImageInfo {
+	requestHeaders := getImagePostRequestHeaders(originalrequest)
 	opResult := OperationImageInfo{}
-	headers := "-H 'X-LXD-filename: imageTest' -H 'X-LXD-public: true' -H 'X-LXD-properties: os=Ubuntu&alias=pruebaComun'"
+	headers := fmt.Sprintf("-H 'X-LXD-filename: %s' -H 'X-LXD-public: %s' -H 'X-LXD-properties: %s'",requestHeaders["X-LXD-filename"],requestHeaders["X-LXD-public"],requestHeaders["X-LXD-properties"])
 	body ,err := json.Marshal(r)
 	if err != nil {
 		fmt.Println(err)
 	}
-	/*body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		fmt.Println(err)
-	}*/
 	strbody := string(body)
 	//fmt.Println(strbody)
 	argstr := []string{}
@@ -289,7 +226,7 @@ func doImagePost(hostname string,r api.ImagesPost ) OperationImageInfo {
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		headers := []string{"-H","'X-LXD-filename: imageTest'","-H","'X-LXD-public: true'","-H","'X-LXD-properties: os=Ubuntu&alias=pruebaComun'"}
+		headers := []string{"-H",fmt.Sprintf("'X-LXD-filename: %s'",requestHeaders["X-LXD-filename"]),"-H",fmt.Sprintf("'X-LXD-public: %s'",requestHeaders["X-LXD-public"]),"-H",fmt.Sprintf("'X-LXD-properties: %s'",requestHeaders["X-LXD-properties"])}
 		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket"}
 		argstr = append(argstr,headers...)
 		argstr = append(argstr,[]string{"-X","POST","-d",fmt.Sprintf(""+strbody+""),"s/1.0/images"}...)
@@ -307,6 +244,17 @@ func doImagePost(hostname string,r api.ImagesPost ) OperationImageInfo {
     opResult.Operation = resp.Operation
     opResult.Host = hostname
     return opResult
+}
+
+func getImagePostRequestHeaders(originalrequest *http.Request) map[string]string {
+	var resultHeaders map[string]string = make(map[string]string,4)
+
+	resultHeaders["X-LXD-filename"] = originalrequest.Header.Get("X-LXD-filename")
+	resultHeaders["X-LXD-public"] = originalrequest.Header.Get("X-LXD-public")
+	resultHeaders["X-LXD-properties"] = originalrequest.Header.Get("X-LXD-properties")
+	resultHeaders["X-LXD-fingerprint"] = originalrequest.Header.Get("X-LXD-fingerprint")
+	fmt.Printf("Parsed headers: %+v",resultHeaders)
+	return resultHeaders
 }
 
 type OperationHost struct {
@@ -344,38 +292,24 @@ func watchImageOperation(opInfo []OperationImageInfo) []OperationHost {
 		//resultLXD = append(resultLXD,v)
 	}
 	if deleteImages == true {
-		fmt.Println("hay al menos un failure en:")
+		fmt.Println("There's at least a failure in: ")
 		for _,v := range result {
 			if v.Response.Status != "Failure" {
-				fmt.Println("estoy borrando: "+v.Response.Metadata["fingerprint"].(string)+" en "+v.Host)
+				fmt.Println("deleting: "+v.Response.Metadata["fingerprint"].(string)+" en "+v.Host)
 				deleteImage(v)
+			}else{
+				fmt.Println("No deletion because "+v.Response.Metadata["fingerprint"].(string)+" wasn't created.")
 			}
-			fmt.Println("No borro porque "+v.Response.Metadata["fingerprint"].(string)+" no se ha llegado a crear")
 		}
 		return nil
 	}
-	fmt.Println("Al parecer todo se ha creado bien.")
+	fmt.Println("\nEverything went fine.")
 	return result
 }
 
 func doWatchImageOperation(op OperationImageInfo) OperationHost {
-	argstr := []string{}
-	command := exec.Command("curl",argstr...)
-	hostname := op.Host
-	//fmt.Println("\n"+string(buf))
-	//fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
-	if hostname != "local" {
-		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -k --unix-socket /var/lib/lxd/unix.socket s"+op.Operation+"/wait"}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("ssh", argstr...)
-	} else {
-		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","s"+op.Operation+"/wait"}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("curl", argstr...)
-	}
-	
-    out, err := command.Output()
-    fmt.Println("\nOut: ",string(out))
+
+    out,hostname,err := doWatchOperation(op.Host,op.Operation)
     if err != nil {
         fmt.Println(err)
     }
@@ -396,33 +330,20 @@ func parseOperationFromMetadata(input []byte) api.Operation {
 }
 
 func deleteImage(oph OperationHost) {
-	argstr := []string{}
-	command := exec.Command("curl",argstr...)
-	hostname := oph.Host
-	//fmt.Println("\n"+string(buf))
-	//fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
-	if hostname != "local" {
-		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -k --unix-socket /var/lib/lxd/unix.socket s/1.0/images/"+oph.Response.Metadata["fingerprint"].(string)}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("ssh", argstr...)
-	} else {
-		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/images/"+oph.Response.ID}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("curl", argstr...)
-	}
 	
-    out, err := command.Output()
-    fmt.Println("\nOut: ",string(out))
-    if err != nil {
-        fmt.Println(err)
-    }
+	hostname := oph.Host
+	fingerprint := oph.Response.ID
+	_,err := doImageDelete(hostname,fingerprint)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 var imageCmd = Command{
 	name: "images/{fingerprint}",
 	get: imageGet,
 	put: imagePut,
-	delete: imageDelete,
+	delete: imagesDelete,
 }
 
 func getHostnameFromFingerprint(lx *LxdpmApi, fingerprint string) [][]interface{} {
@@ -438,31 +359,17 @@ func getHostnameFromFingerprint(lx *LxdpmApi, fingerprint string) [][]interface{
 
 func imageGet(lx *LxdpmApi,  r *http.Request) Response {
 	fingerprint := mux.Vars(r)["fingerprint"]
-	hostname := getHostnameFromFingerprint(lx,fingerprint)
+	hostname := "local"
 
-	resp := doImageGet(fingerprint,hostname[0][0].(string))
-
-	return resp
-}
-
-func doImageGet(fingerprint string,hostname string) Response {
-	argstr := []string{}
-	command := exec.Command("curl",argstr...)
-	if hostname != "local" {
-		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/images/"+fingerprint}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("ssh", argstr...)
-	} else {
-		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/images/"+fingerprint}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("curl", argstr...)
+	res,_ := doImageGet(fingerprint,hostname)
+	responseType := getResponseType(res)
+	if responseType == "sync" {
+		endpointResponse,_ := parseResponseRawToSync(res)
+		return &endpointResponse
+	}else {
+		errorResp := parseErrorResponse(res)
+		return &errorResp
 	}
-    out, err := command.Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseSyncResponse(out)
-    return meta
 }
 
 func imagePut(lx *LxdpmApi,  r *http.Request) Response {
@@ -474,73 +381,186 @@ func imagePut(lx *LxdpmApi,  r *http.Request) Response {
 	fingerprint := mux.Vars(r)["fingerprint"]
 	hostname := getHostnameFromFingerprint(lx,fingerprint)
 
-	resp := doImagePut(fingerprint,hostname[0][0].(string),req)
-
-	return resp
-}
-
-func doImagePut(fingerprint string,hostname string,req api.ImagePut) Response {
-	body ,err := json.Marshal(req)
-	if err != nil {
-		fmt.Println(err)
+	res,_ := doImagePut(fingerprint,hostname[0][0].(string),req)
+	responseType := getResponseType(res)
+	if responseType == "sync" {
+		endpointResponse,_ := parseResponseRawToSync(res)
+		return &endpointResponse
+	}else {
+		errorResp := parseErrorResponse(res)
+		return &errorResp
 	}
-	strbody := string(body)
-	argstr := []string{}
-	command := exec.Command("curl",argstr...)
-	if hostname != "local" {
-		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket -X PUT -d '"+strbody+"' s/1.0/images/"+fingerprint}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("ssh", argstr...)
-	} else {
-		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","PUT","-d",strbody,"s/1.0/images/"+fingerprint}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("curl", argstr...)
-	}
-    out, err := command.Output()
-    if err != nil {
-        fmt.Println(err)
-    }
-    meta := parseSyncResponse(out)
-    return meta
 }
-
 
 func imageDelete(lx *LxdpmApi,  r *http.Request) Response {
+	var endpointResponse api.Operation
+	var endpointUrl string
+
 	fingerprint := mux.Vars(r)["fingerprint"]
 	hostname := getHostnameFromFingerprint(lx,fingerprint)
 
-	resp := doImageDelete(fingerprint,hostname[0][0].(string))
-
-	return resp
+	res, _ := doImageDelete(hostname[0][0].(string),fingerprint)
+	responseType := operationOrError(res)
+	if responseType == "operation" {
+		endpointUrl,endpointResponse,_ = parseResponseRawToOperation(res)
+		return OperationResponse(endpointUrl,&endpointResponse)
+	}else{
+		errorResp := parseErrorResponse(res)
+		return &errorResp
+		}
 }
 
-func doImageDelete(fingerprint string,hostname string) Response {
-	argstr := []string{}
-	command := exec.Command("curl",argstr...)
-	if hostname != "local" {
-		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket -X DELETE s/1.0/images/"+fingerprint}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("ssh", argstr...)
-	} else {
-		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","DELETE","s/1.0/images/"+fingerprint}
-		fmt.Println("\nArgs: ",argstr)
-		command = exec.Command("curl", argstr...)
+func imagesDelete(lx *LxdpmApi,  r *http.Request) Response {
+	fingerprint := mux.Vars(r)["fingerprint"]
+
+	run := func(op *task) error {
+		result,err := imagesDeleteAllHosts(lx,fingerprint)
+		fmt.Printf("Images Delete result:%+v",result)
+		fmt.Printf("Images Delete error:%+v",err)
+		return nil
 	}
-    out, err := command.Output()
+
+	op, err := taskCreate(taskClassOp, nil, nil, run, nil, nil)
+	//fmt.Printf("Soy la op: %+v\n",op)
+	fmt.Println("Creation error: ",err)
+	tk,err := taskGet(op.id)
+	//fmt.Printf("Soy la task: %+v\n",tk)
+	//tk.Run() //De normal se llama al hacer el render de operation en Response.go
+	fmt.Println("Task Get error: ",err)
+	return TaskResponse(tk)
+}
+
+func imagesDeleteAllHosts(lx *LxdpmApi, fingerprint string) ([]ResponseHost, error) {
+	var keys []string
+	var wg sync.WaitGroup
+	//var resultLXD []string
+	
+	hosts, err:= getHostsDB(lx)
+	if err != nil {
+		fmt.Println(err)
+	}
+	for _, host := range hosts {
+		keys = append(keys,host[1].(string))
+	}
+	var result []OperationImageInfo
+	var operation_info = make(chan OperationImageInfo,len(keys))
+	defer close(operation_info)
+	wg.Add(len(keys))
+	sort.Strings(keys)
+	fmt.Println(keys)
+	for i,_ := range keys {
+		key := keys[i] 
+		go func (key string,fingerprint string) {
+			defer wg.Done()
+			out,err := doImageDelete(key,fingerprint)
+			if err != nil {
+				fmt.Println(err)
+			}
+			op,err := parseOperationResponse(out)
+			if err != nil {
+				fmt.Println(err)
+			}
+			operation_info <- OperationImageInfo{Operation: op.ID, Host: key}
+		}(key,fingerprint)
+	}
+	for i :=0 ;i < len(keys); i++ {
+		result = append(result,<-operation_info)
+		//fmt.Printf("Soy result: %+v",result)
+	}
+	wg.Wait()
+	/*for _,v := range result {
+		fmt.Printf("\nSoy v: %+v",v)
+		//resultLXD = append(resultLXD,v)
+	}*/
+	opResults := watchDeleteImageOperation(result)
+
+	//res := imagesPost(req)
+	//return AsyncResponse(true,"")
+	return opResults,nil
+}
+
+func watchDeleteImageOperation(opInfo []OperationImageInfo) []ResponseHost {
+	var wg sync.WaitGroup
+	var result []ResponseHost
+	var operationResponse = make(chan ResponseHost,len(opInfo))
+	defer close(operationResponse)
+	wg.Add(len(opInfo))
+	fmt.Println(opInfo)
+	for i,_ := range opInfo {
+		operation := opInfo[i] 
+		go func (op OperationImageInfo) {
+			defer wg.Done()
+			operationResponse <- doWatchDeleteImageOperation(op)
+		}(operation)
+	}
+	for i :=0 ;i < len(opInfo); i++ {
+		result = append(result,<-operationResponse)
+		//fmt.Printf("Soy result: %+v",result)
+	}
+	wg.Wait()
+	//After knowing the result,we can decide if the operation is valid, or we have to do a rollback
+	failure := false
+	for _,v := range result {
+		//fmt.Printf("\nSoy v: %+v",v)
+		if v.Response.Type == "error" || v.OperationResponse.Status == "Failure"{
+			failure = true
+			break
+		}
+		//resultLXD = append(resultLXD,v)
+	}
+	if failure == true {
+		fmt.Println("There's at least a failure in: ")
+		for _,v := range result {
+			if v.Response.Type == "error" {
+				fmt.Println("No deletion because "+v.Response.Error+" in host "+ v.Host)
+			}
+			if v.OperationResponse.Status == "Failure" {
+				fmt.Println("No deletion because "+v.OperationResponse.Err +"in host "+ v.Host)
+			}
+		}
+		return nil
+	}
+	fmt.Println("Everything went fine.")
+	return result
+}
+
+type ResponseHost struct {
+	Response 	api.Response
+	OperationResponse 	api.Operation
+	Host 		string
+}
+
+func doWatchDeleteImageOperation(op OperationImageInfo) ResponseHost {
+
+    out,hostname,err := doWatchOperation(op.Host,op.Operation)
     if err != nil {
         fmt.Println(err)
     }
-    meta := parseAsyncResponse(out)
-    return meta
+    responseType := operationOrError(out)
+	if responseType == "operation" {
+		if err != nil {
+				fmt.Println(err)
+			}
+		opresp,_ := parseOperationResponse(out)
+		hostResp := ResponseHost{OperationResponse: opresp,Host: hostname}
+    	return hostResp
+		}else{
+		errorResp := parseErrorResponseToApiResponse(out)
+		return ResponseHost{Response: errorResp,Host: hostname}
+		}
 }
+
 
 var imagesExportCmd = Command{name: "images/{fingerprint}/export", get: imageExport}
 
 func imageExport(lx *LxdpmApi,  r *http.Request) Response {
 	fingerprint := mux.Vars(r)["fingerprint"]
-	hostname := getHostnameFromFingerprint(lx,fingerprint)
 
-	resp := doImageExport(fingerprint,hostname[0][0].(string))
+	hostname := r.Header.Get("X-LXDPM-hostname")
+	if hostname == ""{
+		return BadRequest(errors.New("Required header X-LXDPM-hostname."))
+	}
+	resp := doImageExport(fingerprint,hostname)
 
 	return resp
 }
@@ -561,7 +581,6 @@ func doImageExport(fingerprint string,hostname string) Response {
     if err != nil {
         fmt.Println(err)
     }
-    //fmt.Println(string(out))
     filename := doImageGetFileName(fingerprint,hostname)
     saveFile(out,"./images/"+filename)
     return SyncResponse(true,"Image created.")

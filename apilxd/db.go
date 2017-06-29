@@ -43,9 +43,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 CREATE TABLE IF NOT EXISTS images (
     id INTEGER primary key AUTOINCREMENT NOT NULL,
-    fingerprint VARCHAR(255) NOT NULL,
-    host_id INTEGER NOT NULL,
-    FOREIGN KEY (host_id) REFERENCES hosts (id) ON DELETE CASCADE
+    fingerprint VARCHAR(255) NOT NULL
 );
 CREATE TABLE IF NOT EXISTS schema (
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -65,7 +63,7 @@ CREATE TABLE IF NOT EXISTS planner (
 const DUMMY_DATA string = `INSERT INTO hosts (id, name, ip) VALUES (1,'local','');
 INSERT INTO hosts (id, name, ip) VALUES (2,'lxdpm02','');
 INSERT INTO hosts (id, name, ip) VALUES (3,'lxdpm03','');
-INSERT INTO planner (id, name, updated_at) VALUES (1,'random','00:00:00');
+INSERT INTO planner (id, state, updated_at) VALUES (1,'random','00:00:00');
 `
 
 func enableForeignKeys(conn *sqlite3.SQLiteConn) error {
@@ -125,7 +123,7 @@ func initializeDbObject(lx *LxdpmApi, path string) (err error) {
 	// similar "locking_mode" pragma (locking for the whole database connection).
 	openPath = fmt.Sprintf("%s?_busy_timeout=%d&_txlock=exclusive", path, timeout*1000)
 
-	// Open the database. If the file doesn't exist it is created.
+	// Open the database. If the file doesn't exist, it is created.
 	lx.db, err = sql.Open("sqlite3_with_fk", openPath)
 	if err != nil {
 		return err

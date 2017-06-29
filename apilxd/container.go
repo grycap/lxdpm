@@ -9,15 +9,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-/*func containerGet(lx *LxdpmApi, r *http.Request) Response {
-	/*_, err := lx.db.Exec(DB_FILL)
-	if err != nil {
-		return BadRequest(err)
-	}
-	result := getHostnameFromContainername(lx,"otrohost2")
-	return SyncResponse(true,result[0][0])
-}*/
-
 func getDBhosts(lx *LxdpmApi) [][]interface{} {
 	inargs := []interface{}{}
 	outargs := []interface{}{"id","localhost","ip"}

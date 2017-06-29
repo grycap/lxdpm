@@ -14,18 +14,18 @@ import (
 
 //strings.Join([]string{systemUser,"@",hostname},""),
 const systemUser string = "troig" 
-const localArgs string = "curl -s --unix-socket /var/lib/lxd/unix.socket"
-var remoteArgs = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket"}
+const remoteArgs string = "curl -s --unix-socket /var/lib/lxd/unix.socket"
+var localArgs = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket"}
 
 func doContainersGet(hostname string) ([]byte,error) {
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr := []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" s/1.0/containers"}
+		argstr := []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" s/1.0/containers"}
 		fmt.Println("\nArgs: ",argstr) 
 		command = exec.Command("ssh", argstr...)
 	}else {
-		argstr = append(remoteArgs,[]string{"s/1.0/containers"}...)
+		argstr = append(localArgs,[]string{"s/1.0/containers"}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -47,11 +47,11 @@ func doContainersPost(req ContainersHostPost) ([]byte,error) {
 	fmt.Println("\n"+string(buf))
 	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
 	if req.Hostname != "" {
-		argstr = []string{strings.Join([]string{systemUser,"@",req.Hostname},""),localArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers"}
+		argstr = []string{strings.Join([]string{systemUser,"@",req.Hostname},""),remoteArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers"}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers"}...)
+		argstr = append(localArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers"}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -74,11 +74,11 @@ func doContainersPlannerPost(req api.ContainersPost,hostname string) ([]byte,err
 	fmt.Println("\n"+string(buf))
 	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers"}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers"}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers"}...)
+		argstr = append(localArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers"}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -95,11 +95,11 @@ func doContainerGet(hostname string, cname string) ([]byte,error) {
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+"s/1.0/containers/"+cname}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" s/1.0/containers/"+cname}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,"s/1.0/containers/"+cname)
+		argstr = append(localArgs,"s/1.0/containers/"+cname)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -121,11 +121,11 @@ func doContainerPut(hostname string,req api.ContainerPut,cname string) ([]byte,e
 	fmt.Println("\n"+string(buf))
 	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X PUT -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X PUT -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","PUT","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname}...)
+		argstr = append(localArgs,[]string{"-X","PUT","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -143,11 +143,11 @@ func doContainerDelete(hostname string,cname string) ([]byte,error) {
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X DELETE s/1.0/containers/"+cname}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X DELETE s/1.0/containers/"+cname}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","DELETE","s/1.0/containers/"+cname}...)
+		argstr = append(localArgs,[]string{"-X","DELETE","s/1.0/containers/"+cname}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -173,11 +173,11 @@ func doContainerPost(hostname string,req api.ContainerPost,cname string) ([]byte
 	fmt.Println("\n"+string(buf))
 	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs + " -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs + " -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname}...)
+		argstr = append(localArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -206,7 +206,7 @@ func doContainerExecPost(hostname string,req api.ContainerExecPost,cname string)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname+"/exec"}...)
+		argstr = append(localArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname+"/exec"}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -224,11 +224,11 @@ func doContainerStateGet(hostname string, cname string) ([]byte,error) {
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" s/1.0/containers/"+cname+"/state"}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" s/1.0/containers/"+cname+"/state"}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"s/1.0/containers/"+cname+"/state"}...)
+		argstr = append(localArgs,[]string{"s/1.0/containers/"+cname+"/state"}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -251,11 +251,11 @@ func doContainerStatePut(hostname string, req api.ContainerStatePut, cname strin
 	fmt.Println("\n"+string(buf))
 	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X PUT -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname+"/state"}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X PUT -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname+"/state"}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","PUT","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname+"/state"}...)
+		argstr = append(localArgs,[]string{"-X","PUT","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname+"/state"}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -273,11 +273,11 @@ func doSnapshotGet(cname string, hostname string, snapname string) ([]byte,error
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" s/1.0/containers/"+cname+"/snapshots/"+snapname}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" s/1.0/containers/"+cname+"/snapshots/"+snapname}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"s/1.0/containers/"+cname+"/snapshots/"+snapname}...)
+		argstr = append(localArgs,[]string{"s/1.0/containers/"+cname+"/snapshots/"+snapname}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -302,11 +302,11 @@ func doSnapshotPost(hostname string, req api.ContainerSnapshotPost, cname string
 	fmt.Println("\n"+string(buf))
 	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname+"/snapshots/"+snap}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname+"/snapshots/"+snap}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname+"/snapshots/"+snap}...)
+		argstr = append(localArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname+"/snapshots/"+snap}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -324,11 +324,11 @@ func doSnapshotDelete(hostname string,cname string,snapname string) ([]byte,erro
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X DELETE s/1.0/containers/"+cname+"/snapshots/"+snapname }
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X DELETE s/1.0/containers/"+cname+"/snapshots/"+snapname }
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","DELETE","s/1.0/containers/"+cname+"/snapshots/"+snapname }...)
+		argstr = append(localArgs,[]string{"-X","DELETE","s/1.0/containers/"+cname+"/snapshots/"+snapname }...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -346,11 +346,11 @@ func doContainerSnapshotsGet(hostname string, cname string) ([]byte,error) {
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" s/1.0/containers/"+cname+"/snapshots"}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" s/1.0/containers/"+cname+"/snapshots"}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"s/1.0/containers/"+cname+"/snapshots"}...)
+		argstr = append(localArgs,[]string{"s/1.0/containers/"+cname+"/snapshots"}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -374,11 +374,11 @@ func doContainerSnapshotPost(hostname string,req api.ContainerSnapshotsPost,cnam
 	fmt.Println("\n"+string(buf))
 	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname+"/snapshots"}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/containers/"+cname+"/snapshots"}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname+"/snapshots"}...)
+		argstr = append(localArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/containers/"+cname+"/snapshots"}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -397,16 +397,16 @@ func containerFileGet(hostname string, cname string, filepath string) ([]byte,[]
 	command := exec.Command("curl",argstr...)
 	headers := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" s/1.0/containers/"+cname+"/files?path="+filepath}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" s/1.0/containers/"+cname+"/files?path="+filepath}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -D - s/1.0/containers/"+cname+"/files?path="+filepath+" -o /dev/null"}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -D - s/1.0/containers/"+cname+"/files?path="+filepath+" -o /dev/null"}
 		headers = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"s/1.0/containers/"+cname+"/files?path="+filepath}...)
+		argstr = append(localArgs,[]string{"s/1.0/containers/"+cname+"/files?path="+filepath}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
-		argstr = append(remoteArgs,[]string{"-D","-","s/1.0/containers/"+cname+"/files?path="+filepath,"-o","/dev/null"}...)
+		argstr = append(localArgs,[]string{"-D","-","s/1.0/containers/"+cname+"/files?path="+filepath,"-o","/dev/null"}...)
 		headers = exec.Command("curl", argstr...)
 	}
 	out, err := command.Output()
@@ -435,11 +435,11 @@ func containerFilePost(hostname string, cname string,filepath string, r *http.Re
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X POST -H \"Content-Type: application/octet-stream\" -d '"+strbody+"' s/1.0/containers/"+cname+"/files?path="+filepath}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X POST -H \"Content-Type: application/octet-stream\" -d '"+strbody+"' s/1.0/containers/"+cname+"/files?path="+filepath}
 		fmt.Println("\nArgs: ",strings.Join(argstr," "))
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","POST","-H", "Content-Type: application/octet-stream","-d","'"+strbody+"'","s/1.0/containers/"+cname+"/files?path="+filepath}...)
+		argstr = append(localArgs,[]string{"-X","POST","-H", "Content-Type: application/octet-stream","-d","'"+strbody+"'","s/1.0/containers/"+cname+"/files?path="+filepath}...)
 		fmt.Println("\nArgs: ",strings.Join(argstr," "))
 		command = exec.Command("curl", argstr...)
 	}
@@ -456,11 +456,11 @@ func containerFileDelete(hostname string, cname string,filepath string, r *http.
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X DELETE s/1.0/containers/"+cname+"/files?path="+filepath}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X DELETE s/1.0/containers/"+cname+"/files?path="+filepath}
 		fmt.Println("\nArgs: ",strings.Join(argstr," "))
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","DELETE","s/1.0/containers/"+cname+"/files?path="+filepath}...)
+		argstr = append(localArgs,[]string{"-X","DELETE","s/1.0/containers/"+cname+"/files?path="+filepath}...)
 		fmt.Println("\nArgs: ",strings.Join(argstr," "))
 		command = exec.Command("curl", argstr...)
 	}
@@ -477,11 +477,11 @@ func doProfilesGet(hostname string) ([]byte,error) {
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr := []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" s/1.0/profiles"}
+		argstr := []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" s/1.0/profiles"}
 		fmt.Println("\nArgs: ",argstr) 
 		command = exec.Command("ssh", argstr...)
 	}else {
-		argstr = append(remoteArgs,[]string{"s/1.0/profiles"}...)
+		argstr = append(localArgs,[]string{"s/1.0/profiles"}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -503,11 +503,11 @@ func doProfilesPost(req ProfilesHostPost) ([]byte,error) {
 	fmt.Println("\n"+string(buf))
 	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
 	if req.Hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",req.Hostname},""),localArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/profiles"}
+		argstr = []string{strings.Join([]string{systemUser,"@",req.Hostname},""),remoteArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/profiles"}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/profiles"}...)
+		argstr = append(localArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/profiles"}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -524,11 +524,11 @@ func doProfileGet(hostname string, pname string) ([]byte,error) {
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" s/1.0/profiles/"+pname}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" s/1.0/profiles/"+pname}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"s/1.0/profiles/"+pname}...)
+		argstr = append(localArgs,[]string{"s/1.0/profiles/"+pname}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -551,11 +551,11 @@ func doProfilePut(hostname string,req api.ProfilePut,pname string) ([]byte,error
 	fmt.Println("\n"+string(buf))
 	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X PUT -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/profiles/"+pname}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X PUT -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/profiles/"+pname}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","PUT","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/profiles/"+pname}...)
+		argstr = append(localArgs,[]string{"-X","PUT","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/profiles/"+pname}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -573,11 +573,11 @@ func doProfileDelete(hostname string,pname string) ([]byte,error) {
 	argstr := []string{}
 	command := exec.Command("curl",argstr...)
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X DELETE s/1.0/profiles/"+pname}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X DELETE s/1.0/profiles/"+pname}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","DELETE","s/1.0/profiles/"+pname}...)
+		argstr = append(localArgs,[]string{"-X","DELETE","s/1.0/profiles/"+pname}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -602,11 +602,11 @@ func doProfilePost(hostname string,req api.ProfilePost,pname string) ([]byte,err
 	fmt.Println("\n"+string(buf))
 	fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
 	if hostname != "local" {
-		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),localArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/profiles/"+pname}
+		argstr = []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" -X POST -d "+fmt.Sprintf("'"+string(buf)+"'")+" s/1.0/profiles/"+pname}
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("ssh", argstr...)
 	} else {
-		argstr = append(remoteArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/profiles/"+pname}...)
+		argstr = append(localArgs,[]string{"-X","POST","-d",fmt.Sprintf(""+string(buf)+""),"s/1.0/profiles/"+pname}...)
 		fmt.Println("\nArgs: ",argstr)
 		command = exec.Command("curl", argstr...)
 	}
@@ -615,6 +615,91 @@ func doProfilePost(hostname string,req api.ProfilePost,pname string) ([]byte,err
 	fmt.Println("Este es el out: ",string(out))
 	if err != nil {
 		fmt.Println("Este es el error: ",err)
+		return nil,err
+	}
+	return out,nil
+}
+
+func doImagesGet(hostname string) ([]byte,error) {
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	if hostname != "local" {
+		argstr := []string{strings.Join([]string{systemUser,"@",hostname},""),remoteArgs+" s/1.0/images"}
+		fmt.Println("\nArgs: ",argstr) 
+		command = exec.Command("ssh", argstr...)
+	}else {
+		argstr = append(localArgs,[]string{"s/1.0/images"}...)
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("curl", argstr...)
+	}
+	out, err := command.Output()
+	if err != nil {
+		fmt.Println(err)
+		return nil,err
+	}
+	return out,nil
+}
+
+func doImageGet(fingerprint string,hostname string) ([]byte,error) {
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	if hostname != "local" {
+		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("curl", argstr...)
+	}
+    out, err := command.Output()
+	if err != nil {
+		fmt.Println(err)
+		return nil,err
+	}
+	return out,nil
+}
+
+func doImagePut(fingerprint string,hostname string,req api.ImagePut) ([]byte,error) {
+	body ,err := json.Marshal(req)
+	if err != nil {
+		fmt.Println(err)
+	}
+	strbody := string(body)
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	if hostname != "local" {
+		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket -X PUT -d '"+strbody+"' s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","PUT","-d",strbody,"s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("curl", argstr...)
+	}
+    out, err := command.Output()
+	if err != nil {
+		fmt.Println(err)
+		return nil,err
+	}
+	return out,nil
+}
+
+func doImageDelete(hostname string,fingerprint string) ([]byte,error) {
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	if hostname != "local" {
+		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -s --unix-socket /var/lib/lxd/unix.socket -X DELETE s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","-X","DELETE","s/1.0/images/"+fingerprint}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("curl", argstr...)
+	}
+    out, err := command.Output()
+	if err != nil {
+		fmt.Println(err)
 		return nil,err
 	}
 	return out,nil
@@ -672,4 +757,26 @@ func doGetCores(hostname string) (int,error) {
 		return 0,err
 	}
 	return int(freeMemory),nil
+}
+
+func doWatchOperation(hostname string, ophash string) ([]byte,string,error) {
+	argstr := []string{}
+	command := exec.Command("curl",argstr...)
+	//fmt.Println("\n"+string(buf))
+	//fmt.Println("\n"+fmt.Sprintf("'"+string(buf)+"'"))
+	if hostname != "local" {
+		argstr = []string{strings.Join([]string{"troig","@",hostname},""),"curl -k --unix-socket /var/lib/lxd/unix.socket s/1.0/operations/"+ophash+"/wait"}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("ssh", argstr...)
+	} else {
+		argstr = []string{"-k","--unix-socket","/var/lib/lxd/unix.socket","s/1.0/operations/"+ophash+"/wait"}
+		fmt.Println("\nArgs: ",argstr)
+		command = exec.Command("curl", argstr...)
+	}
+	out, err := command.Output()
+	if err != nil {
+		fmt.Println(err)
+		return nil,"",err
+	}
+	return out,hostname,nil
 }

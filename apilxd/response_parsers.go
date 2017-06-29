@@ -164,6 +164,11 @@ func parseErrorResponse(input []byte) errorResponse {
     
     return errorInfoResponse
 }
+func parseErrorResponseToApiResponse(input []byte) api.Response {
+    var resp = api.Response{}
+    json.NewDecoder(bytes.NewReader(input)).Decode(&resp)
+    return resp
+}
 
 func operationOrError(input []byte) string{
 	var resp = api.Response{}
@@ -242,5 +247,12 @@ func parseMetadataFromMultipleContainersResponse(hostname string, input []byte) 
     json.NewDecoder(bytes.NewReader(input)).Decode(&resp)
     res.Name = hostname
     json.NewDecoder(bytes.NewReader(resp.Metadata)).Decode(&res.Containers)
+    return res
+}
+func parseMetadataFromAllImagesResponse(hostname string, input []byte) (res HostImageMetadata) {
+    var resp = api.Response{}
+    json.NewDecoder(bytes.NewReader(input)).Decode(&resp)
+    res.Name = hostname
+    json.NewDecoder(bytes.NewReader(resp.Metadata)).Decode(&res.Images)
     return res
 }
